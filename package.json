@@ -1,0 +1,31 @@
+{
+  "name": "ava-spark-dao",
+  "version": "0.1.0-preview.2",
+  "private": true,
+  "description": "AVA Spark DAO local developer preview for Spark DAO rules v1.5.",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:contracts": "forge test --offline --threads 1",
+    "test": "npm run typecheck && npm run check:runtime && npm run test:contracts",
+    "start": "node --import tsx examples/spark-dao/v15/participant-cli.ts",
+    "check:runtime": "node --import tsx scripts/check-runtime.mjs"
+  },
+  "dependencies": {
+    "@ava-protocol/contracts": "file:artifacts/ava-protocol-contracts-0.1.0-preview.12.tgz",
+    "@ava-protocol/sdk": "file:artifacts/ava-protocol-sdk-0.1.0-preview.12.tgz",
+    "@ava-protocol/local-service": "file:artifacts/ava-protocol-local-service-0.1.0-preview.12.tgz",
+    "@ava-protocol/workbench": "file:artifacts/ava-protocol-workbench-0.1.0-preview.5.tgz",
+    "fastify": "5.12.7",
+    "tsx": "4.23.15",
+    "viem": "2.57.10"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3"
+  },
+  "license": "Apache-2.0"
+}

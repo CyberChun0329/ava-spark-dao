@@ -1,0 +1,22 @@
+[profile.default]
+src = "src"
+test = "test"
+out = ".build/out"
+cache_path = ".build/cache"
+libs = ["node_modules"]
+remappings = ["@ava-protocol/contracts/=node_modules/@ava-protocol/contracts/"]
+solc_version = "0.8.26"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+bytecode_hash = "none"
+
+[fuzz]
+runs = 128
+
+[invariant]
+runs = 64
+depth = 64
+fail_on_revert = true
+show_metrics = true

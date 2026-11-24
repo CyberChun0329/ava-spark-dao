@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title data-en="AVA Spark DAO · Classes and payments">AVA Spark DAO · 课程和款项</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#workspace" data-en="Skip to workspace">跳到工作区</a>
+  <header class="site-header">
+    <a class="wordmark" href="#workspace" aria-label="AVA Spark DAO 工作台" data-en-aria-label="AVA Spark DAO workspace"><span class="brand-mark" aria-hidden="true"></span>AVA Spark <span>DAO</span></a>
+    <div class="language-control" id="language-control" role="group" aria-label="界面语言" data-en-aria-label="Display language" hidden>
+      <button type="button" data-language="zh" lang="zh-CN" aria-pressed="true">中文</button>
+      <button type="button" data-language="en" lang="en" aria-pressed="false">English</button>
+    </div>
+  </header>
+  <main id="workspace" tabindex="-1">
+    <header class="page-title">
+      <div class="page-heading">
+        <h1 data-en="Classes and payments">课程和款项</h1>
+        <p id="access-hint" data-en="Open the Spark DAO service address to load your records and connect a wallet.">请从 Spark DAO 服务地址打开工作台，查看记录并连接钱包。</p>
+      </div>
+      <div class="entry-status">
+        <p id="installation" role="status" data-en="Workspace offline">工作台尚未连接</p>
+        <div id="wallet-status" hidden><strong id="wallet-account" role="status" data-en="Wallet not connected">钱包未连接</strong><div id="wallet-role"></div></div>
+        <div class="entry-actions">
+          <button type="button" class="primary" id="connect" data-en="Connect wallet" hidden disabled>连接钱包</button>
+          <button type="button" id="refresh" data-en="Refresh records" hidden disabled>刷新记录</button>
+          <button type="button" id="reload" data-en="Reload page" hidden>重新加载页面</button>
+        </div>
+      </div>
+    </header>
+    <p id="announcement" class="sr-only" role="status"></p>
+    <p id="notice-status" class="sr-only" role="status"></p>
+    <p id="message" class="status" hidden></p>
+    <div id="workspace-content" hidden>
+      <nav class="workspace-nav" aria-label="工作区导航" data-en-aria-label="Workspace navigation">
+        <a href="#payment-workspace" data-en="Payments">款项</a>
+        <a id="course-jump" href="#course-workspace" data-en="Classes" hidden>课程</a>
+        <a id="case-jump" href="#case-inbox" data-en="Cases" hidden>案件</a>
+        <a href="#wallet-transactions" data-en="Wallet transactions">钱包交易记录</a>
+      </nav>
+      <div class="workspace">
+        <section id="payment-workspace" tabindex="-1" aria-labelledby="payments-title">
+          <div class="payment-heading">
+            <h2 id="payments-title" data-en="Payments by class">各堂课的款项</h2>
+            <p id="reading" aria-live="polite"></p>
+          </div>
+          <div class="payment-filter" id="payment-filter" hidden>
+            <label><input id="payment-actions-only" type="checkbox"><span data-en="Only payments with available actions">仅看有可用操作的款项</span></label>
+            <p id="payment-filter-status" role="status"></p>
+          </div>
+          <p id="payment-filter-empty" class="empty" data-en="No payments match this filter. Turn it off to see all payments." hidden>没有符合筛选条件的款项。取消筛选即可查看全部款项。</p>
+          <div id="obligations" class="payment-groups"><p class="empty" data-en="Connect your wallet to see your payments and available actions.">连接钱包后，就可以查看相关款项和可办理的事项。</p></div>
+        </section>
+        <aside class="side">
+          <section id="operation" class="panel" hidden>
+            <div class="panel-heading"><h2 id="operation-title" data-en="Review action">核对操作</h2><button type="button" id="close-operation" data-en="Close">关闭</button></div>
+            <div id="operation-context" hidden></div>
+            <form id="operation-form" autocomplete="off">
+              <div id="operation-fields"></div>
+              <button type="button" id="course-quote" data-en="Preview settlement by seat" hidden>预览每个名额的结算</button>
+              <div id="quote-result" class="preview" hidden></div>
+              <button class="primary" type="submit" id="preview" data-en="Preview transaction">预览交易</button>
+            </form>
+            <div id="preview-content" class="preview" tabindex="-1" role="region" aria-label="交易预览" data-en-aria-label="Transaction preview" hidden></div>
+            <div class="preview-actions">
+              <button type="button" id="edit-operation" data-en="Return to editing" hidden>返回编辑</button>
+              <button class="primary" type="button" id="submit" data-en="Confirm in wallet" hidden>去钱包确认</button>
+            </div>
+            <button type="button" id="operation-result" data-en="View this transaction" hidden>查看这笔交易</button>
+          </section>
+          <section class="panel" id="notices" hidden>
+            <div class="panel-heading"><h2 data-en="Private notice">私密通知</h2><button type="button" id="close-notice" data-en="Hide notice">隐藏通知</button></div>
+            <div id="notice-content" class="notice-content"></div>
+          </section>
+          <section class="panel" id="wallet-transactions" tabindex="-1" aria-labelledby="transaction-title">
+            <h2 id="transaction-title" data-en="Wallet transactions">钱包交易记录</h2>
+            <p class="section-intro" data-en="Activity started from this workspace appears here for this wallet in this browser.">从此工作台发起的操作会显示在此浏览器中当前钱包的记录里。</p>
+            <div id="transactions"><p class="muted" data-en="Connect your wallet to see its Spark DAO transactions.">连接钱包后，就可以查看这个钱包在 Spark DAO 的交易。</p></div>
+          </section>
+        </aside>
+      </div>
+      <section class="workspace-secondary" id="course-workspace" tabindex="-1" hidden aria-labelledby="courses-title">
+        <h2 id="courses-title" data-en="Bookings, teaching and settlement">订课、授课和结算</h2>
+        <div id="courses" class="courses" hidden></div>
+      </section>
+      <section class="panel cases" id="case-inbox" tabindex="-1" hidden aria-labelledby="case-inbox-title">
+        <div class="panel-heading"><h2 id="case-inbox-title" data-en="Case inbox">案件收件箱</h2><button type="button" id="load-cases" data-en="Unlock cases with wallet">用钱包授权查看</button></div>
+        <p id="case-intro" class="section-intro" data-en="Sign a wallet message to read the cases you can access. This does not submit a transaction.">签署钱包消息后，可查看你有权访问的案件；这不会提交交易。</p>
+        <p id="case-status" class="case-status" role="status"></p>
+        <div id="case-records"></div>
+      </section>
+    </div>
+    <details class="disclosure">
+      <summary data-en="What is public on the blockchain?">哪些记录会公开上链？</summary>
+      <p data-en="Anyone can see class and payment IDs, the amounts due and approved, addresses, times, the rules used, evidence IDs, what each hold covers and its verification record, transaction receipts, and token transfers. Booking confirmations show the addresses of the class provider, teacher, customer, payer and student. Case submissions show the addresses included in the transaction. Together, these records can reveal who took part.">任何人都可以查看课次和款项编号、该付和已批准的金额、地址、时间、适用规则、证据编号、暂缓的范围及校验记录、交易回执和代币转账。订课确认单会公开课程方、教师、客户、付款人和学生的地址。提交案件时，交易里附带的当事人地址也会公开。这些记录可以用来判断谁参与了哪项活动。</p>
+      <p data-en="Anyone can look up planned booking confirmations, the locked class roster and the addresses of students present when the class began. A booking confirmation ID can link a student's address to attendance reports, feedback on the class and the related evidence IDs.">计划中的订课确认单、锁定后的名册和实际开课时到场学生的地址都可以公开查询。通过确认单编号，可以把学生地址与出勤报告、上课反馈和相关证据编号关联起来。</p>
+      <p data-en="The Vault stores private notices and lists who can read them. The app labels participant statements, verified records and AI suggestions. A notice's public reference lets you check that the text matches what was originally recorded.">私密通知的原文和获准阅读的人由资料库保管。工作台会标明哪些是参与者陈述、已核实记录或 AI 建议。公开的通知编号可用来核对原文是否和登记时一致。</p>
+    </details>
+  </main>
+</body>
+</html>
