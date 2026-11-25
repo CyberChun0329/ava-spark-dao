@@ -21,7 +21,9 @@ The archived transaction evidence supports the stated actions and readbacks. Ori
 
 ## Receipt timing and historical reads
 
-The published Preview 2 [material funding tests](https://github.com/CyberChun0329/ava-spark-dao/blob/a43a56eb41ab904edf19527afae603313ae1fabc/test/spark/v15/MaterialsFunding.t.sol) include `testM3VerifiedEarlierReceiptMakesSecondActualPaymentPossible` and `testSameSecondVerifiedReceiptsBackNextProvisionAtOriginalCash`. In the former, paying 4 would leave 143 against required protection of 145. Verification lowers the requirement to 143 and the same approval pays in the same recorded second. In the latter, verified receipts can support the next provision without waiting for filing.
+In Preview 2, paying 4 would leave 143 against required protection of 145. Verification lowers the requirement to 143 and payment of 4 succeeds on the same approval in the same recorded second. [`testCurrentProtectionCountsAReceiptAfterSameSecondVerification`](https://github.com/CyberChun0329/ava-spark-dao/blob/a43a56eb41ab904edf19527afae603313ae1fabc/test/spark/v15/MaterialsFunding.t.sol#L658)
+
+A separate test checks that verified receipts support the next provision without waiting for filing. [`testSameSecondVerifiedReceiptsBackNextProvisionAtOriginalCash`](https://github.com/CyberChun0329/ava-spark-dao/blob/a43a56eb41ab904edf19527afae603313ae1fabc/test/spark/v15/MaterialsFunding.t.sol#L684)
 
 An older [G5 two-block export](data/g5-two-blocks.json) records material protection of 12 at block 228 after payment of 2 and 10 at block 230 after independent verification. Both blocks have the same timestamp and cash of 200. The read with the next payment proposed changes from 8 to 6, and re-reading block 228 still gives 12 for current material protection at that block. The next payment of 4 passes **simulation** at both cuts. This export has no actual next transfer. Its blocks are from a different run than B1 run-04.
 

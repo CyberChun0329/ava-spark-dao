@@ -86,7 +86,7 @@ check_witnesses() (
 
   for name in TPrefix TNormal TFault JointMProof PendingReserve \
     PendingProjection PendingCase JointHistory OtherBranches Menu TransferEligibility TransferReviewPath \
-    TimedTransferPortions ReviewInterestCandidate CostProjection EvidencePayment AcceptedRetainedFees \
+    TimedTransferPortions ReviewInterestCandidate CostProjection EvidencePayment AcceptedRetainedFees JoinedPaymentCut \
     SplitReceipt CompetingPrefunding ReceiptFiling TransferReserve; do
     check_module "$name"
   done
