@@ -10,6 +10,10 @@ The app uses the public chain for changes that parties need to verify or enforce
 
 To open the app and connect a test wallet, follow the [local installation guide](docs/local-installation.md). For the ordinary one-to-one workflow, see [participant commands](docs/ordinary-participant-pilot.md), [terms delivery](docs/terms-delivery-pilot.md) and [settlement](docs/settlement-support-pilot.md).
 
+## Rule specification
+
+The [v1.5 specification](spec/v1.5/README.md) follows the English rules through the direct and recognised-state Lean models to the app. It also explains how to build the two projects and the scope of their proofs.
+
 ## Run the tests
 
 Use Node.js 24 or later with npm, Foundry and the Solidity compiler, solc 0.8.26. The test run used Foundry 1.5.1. Run these commands from the repository root.

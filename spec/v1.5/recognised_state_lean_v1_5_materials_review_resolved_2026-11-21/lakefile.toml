@@ -1,0 +1,10 @@
+name = "spark_recognised_v15_workflow"
+version = "0.2.0"
+defaultTargets = ["RecognisedV15"]
+
+[[require]]
+name = "spark_source_v14"
+path = "../source_lean_v1_5_materials_review_resolved_2026-11-21"
+
+[[lean_lib]]
+name = "RecognisedV15"

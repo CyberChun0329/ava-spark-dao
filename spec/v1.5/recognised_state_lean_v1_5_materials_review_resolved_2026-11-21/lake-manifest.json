@@ -1,0 +1,14 @@
+{"version": "1.3.0",
+ "packagesDir": ".lake/packages",
+ "packages":
+ [{"type": "path",
+   "scope": "",
+   "name": "spark_source_v14",
+   "manifestFile": "lake-manifest.json",
+   "inherited": false,
+   "dir": "../source_lean_v1_5_materials_review_resolved_2026-11-21",
+   "copy": false,
+   "configFile": "lakefile.toml"}],
+ "name": "spark_recognised_v15_workflow",
+ "lakeDir": ".lake",
+ "fixedToolchain": false}

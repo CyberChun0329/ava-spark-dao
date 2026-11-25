@@ -1,0 +1,6 @@
+name = "spark_source_v14"
+version = "1.5.0"
+defaultTargets = ["SourceV14"]
+
+[[lean_lib]]
+name = "SourceV14"

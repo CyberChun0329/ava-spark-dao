@@ -9,3 +9,4 @@
 /.DS_Store
 *.sqlite
 *.sqlite-*
+/spec/v1.5/**/.lake/
