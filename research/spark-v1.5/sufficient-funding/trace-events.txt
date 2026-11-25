@@ -1,0 +1,31 @@
+Selected verbatim lines from the archived Forge trace; numbers are source line numbers.
+4: [PASS] testFundedReceiptTimingAllowsBothActualPayments() (gas: 29344408)
+3127:     │   ├─ emit PaymentReceived(obligationId: 0x665229efc0e599c17f131cbc8b1fadc116971792a1a4e5d10b2718fe375e7699, requestId: 1, receiptId: 1, executor: 0x0000000000000000000000000000000000007908, recipient: 0x0000000000000000000000000000000000007905, creditAccount: 0x0000000000000000000000000000000000000000000000000000000000000000, amount: 2)
+3196:     ├─ [196857] SparkV15MaterialProvisions::verifyMaterialReceipt(1, 1000044 [1e6], 17, 0xfec110a64374584b12e4396ac822627dac05dda0ab8ff54b113be612e5803ff4)
+3243:     │   ├─ emit MaterialReceiptVerified(receiptId: 1, obligationId: 0x665229efc0e599c17f131cbc8b1fadc116971792a1a4e5d10b2718fe375e7699, verifiedAt: 1000044 [1e6], evidenceId: 17)
+4507:     ├─ emit FundedReceiptTiming(early: true, stage: 0, time: 1000045 [1e6], cash: 153, base: 141, materialProtection: 10, additionalProtection: 6, proposedMaterialProtection: 6, proposedAdditionalProtection: 6)
+4510:     ├─ [592445] SparkV15Payments::pay(2, 4)
+4520:     │   │   ├─ [299895] SparkV15MaterialProvisions::requireAfterOutflow(0x29d30fdd7e64e5b31fbc16a12b1ceec0649c8e82ed33a761ee03044496228d9e, 4, 149, 137) [staticcall]
+4545:     │   │   │   ├─ [260759] SparkV15MaterialBacking::requiredBeyondLessonHold(0x000000000000000000000000000000000000000000000000000000000000002a, 0x29d30fdd7e64e5b31fbc16a12b1ceec0649c8e82ed33a761ee03044496228d9e, 4, false) [staticcall]
+4756:     │   │   │   │   └─ ← [Return] 6
+4761:     │   │   │   ├─ emit Transfer(from: SparkV15Funds: [0xc1dd41B85a8a80055BD7A09496727A5fD6371B95], to: 0x0000000000000000000000000000000000007906, value: 4)
+4768:     │   ├─ emit PaymentReceived(obligationId: 0x29d30fdd7e64e5b31fbc16a12b1ceec0649c8e82ed33a761ee03044496228d9e, requestId: 2, receiptId: 2, executor: 0x0000000000000000000000000000000000007908, recipient: 0x0000000000000000000000000000000000007906, creditAccount: 0x0000000000000000000000000000000000000000000000000000000000000000, amount: 4)
+5634:     ├─ emit FundedReceiptTiming(early: true, stage: 1, time: 1000045 [1e6], cash: 149, base: 137, materialProtection: 10, additionalProtection: 10, proposedMaterialProtection: 10, proposedAdditionalProtection: 10)
+5678:     ├─ [194857] SparkV15MaterialProvisions::verifyMaterialReceipt(2, 1000047 [1e6], 18, 0xfec110a64374584b12e4396ac822627dac05dda0ab8ff54b113be612e5803ff4)
+5725:     │   ├─ emit MaterialReceiptVerified(receiptId: 2, obligationId: 0x29d30fdd7e64e5b31fbc16a12b1ceec0649c8e82ed33a761ee03044496228d9e, verifiedAt: 1000047 [1e6], evidenceId: 18)
+6669:     ├─ emit FundedReceiptTiming(early: true, stage: 2, time: 1000047 [1e6], cash: 149, base: 137, materialProtection: 6, additionalProtection: 6, proposedMaterialProtection: 6, proposedAdditionalProtection: 6)
+7642:     ├─ emit FundedReceiptTiming(early: false, stage: 0, time: 1000045 [1e6], cash: 153, base: 141, materialProtection: 12, additionalProtection: 8, proposedMaterialProtection: 8, proposedAdditionalProtection: 6)
+7645:     ├─ [531902] SparkV15Payments::pay(2, 4)
+7655:     │   │   ├─ [239352] SparkV15MaterialProvisions::requireAfterOutflow(0x29d30fdd7e64e5b31fbc16a12b1ceec0649c8e82ed33a761ee03044496228d9e, 4, 149, 137) [staticcall]
+7680:     │   │   │   ├─ [200216] SparkV15MaterialBacking::requiredBeyondLessonHold(0x000000000000000000000000000000000000000000000000000000000000002a, 0x29d30fdd7e64e5b31fbc16a12b1ceec0649c8e82ed33a761ee03044496228d9e, 4, false) [staticcall]
+7841:     │   │   │   │   └─ ← [Return] 8
+7846:     │   │   │   ├─ emit Transfer(from: SparkV15Funds: [0xc1dd41B85a8a80055BD7A09496727A5fD6371B95], to: 0x0000000000000000000000000000000000007906, value: 4)
+7853:     │   ├─ emit PaymentReceived(obligationId: 0x29d30fdd7e64e5b31fbc16a12b1ceec0649c8e82ed33a761ee03044496228d9e, requestId: 2, receiptId: 2, executor: 0x0000000000000000000000000000000000007908, recipient: 0x0000000000000000000000000000000000007906, creditAccount: 0x0000000000000000000000000000000000000000000000000000000000000000, amount: 4)
+8519:     ├─ emit FundedReceiptTiming(early: false, stage: 1, time: 1000045 [1e6], cash: 149, base: 137, materialProtection: 12, additionalProtection: 12, proposedMaterialProtection: 12, proposedAdditionalProtection: 12)
+8561:     ├─ [196857] SparkV15MaterialProvisions::verifyMaterialReceipt(1, 1000046 [1e6], 17, 0xfec110a64374584b12e4396ac822627dac05dda0ab8ff54b113be612e5803ff4)
+8608:     │   ├─ emit MaterialReceiptVerified(receiptId: 1, obligationId: 0x665229efc0e599c17f131cbc8b1fadc116971792a1a4e5d10b2718fe375e7699, verifiedAt: 1000046 [1e6], evidenceId: 17)
+8651:     ├─ [194857] SparkV15MaterialProvisions::verifyMaterialReceipt(2, 1000047 [1e6], 18, 0xfec110a64374584b12e4396ac822627dac05dda0ab8ff54b113be612e5803ff4)
+8698:     │   ├─ emit MaterialReceiptVerified(receiptId: 2, obligationId: 0x29d30fdd7e64e5b31fbc16a12b1ceec0649c8e82ed33a761ee03044496228d9e, verifiedAt: 1000047 [1e6], evidenceId: 18)
+9642:     ├─ emit FundedReceiptTiming(early: false, stage: 2, time: 1000047 [1e6], cash: 149, base: 137, materialProtection: 6, additionalProtection: 6, proposedMaterialProtection: 6, proposedAdditionalProtection: 6)
+9645: Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 51.90ms (41.56ms CPU time)
+9647: Ran 1 test suite in 69.75ms (51.90ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

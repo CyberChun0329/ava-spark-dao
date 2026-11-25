@@ -41,20 +41,20 @@ check_witnesses() (
     cp "$spec/$direct/$file" "$work/$direct/"
     cp "$spec/$recognised/$file" "$work/$recognised/"
   done
-  cp "$spec/$direct/SourceV14.lean" "$work/$direct/"
-  cp "$spec/$recognised/RecognisedV15.lean" "$work/$recognised/"
+  cp "$spec/$direct/"*.lean "$work/$direct/"
+  cp "$spec/$recognised/"*.lean "$work/$recognised/"
   cp "$here/"*.lean "$proofs/"
 
   echo "== $version model =="
   check_version ef7540d6fef81b4b7bae3a1b24979f9a8a602ce45107ba04f005e29d91d321c5 "$work/$direct/$material"
   if [[ "$version" = frozen ]]; then
     (cd "$work/$direct" && git apply --reverse "$here/G3.actual.diff")
-    check_version 6b4e206d83c048db7495cadf6bcc5e95e7bf41b19000ab275da58840d67f1651 "$work/$direct/$material"
+    (cd "$work" && shasum -a 256 -c "$here/frozen-inputs.sha256")
   fi
   check_version 225a518d8951853db403ddb651562d33bf4502a9011a7a3a513b9033ad17f498 \
     "$work/$recognised/RecognisedV15/Workflow.lean"
 
-  cat "$spec/$direct/FidelityMaterialsProvisionChecks.lean" "$here/ProvisionFixtureExports.lean.inc" \
+  cat "$work/$direct/FidelityMaterialsProvisionChecks.lean" "$here/ProvisionFixtureExports.lean.inc" \
     > "$proofs/ProvisionWitnessFixture.lean"
   cd "$work/$recognised"
   lean --version
@@ -76,7 +76,7 @@ check_witnesses() (
     exit
   fi
 
-  cat "$spec/$direct/FidelityMaterialsProvisionChecks.lean" "$here/JointM.delta.lean" \
+  cat "$work/$direct/FidelityMaterialsProvisionChecks.lean" "$here/JointM.delta.lean" \
     > "$proofs/JointMProof.lean"
   sed -e 's/^namespace TransferCase$/namespace TimedTransferCase/' \
     -e 's/^end TransferCase$/end TimedTransferCase/' \

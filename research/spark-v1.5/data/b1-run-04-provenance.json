@@ -1,0 +1,601 @@
+{
+  "description": "Selected fields copied from archived synthetic B1 run-04 records. Addresses and identifiers are local test identities. These are saved decoded readbacks, not signed transaction bytes or independent RPC attestations.",
+  "source_sha256": {
+    "result.json": "dfe03944b33b1fb8515b0f8dea443bb0cc2b9c800681bb57934fe201387f564e",
+    "next-core-approval.json": "03ed689834aad03603ddf2d0c554100def6c9a94740759132ae0de559e63c15a",
+    "installed.json": "4228aa295b7b7d7088087bee4ecb07d414748fd23e9b974fce9f3632a7744aa9"
+  },
+  "chainId": 31337,
+  "appId": "0x00f0d8dff1f09f9f220a08efcce9a4ce3e6ffe1f314304ad51c8044881ec2c51",
+  "syntheticPool": "0x2b961e3959b79326a8e7f64ef0d2d825707669b5",
+  "syntheticToken": "0x0b306bf915c4d645ff596e518faf3f9669b97016",
+  "materialLesson": "0x000000000000000000000000000000000000000000000000000000000000002a",
+  "firstMaterialObligation": "0x1f71df6b568325860755ed9ff7252c9a1d12d663750c96aadecdb5581c3953f5",
+  "secondMaterialObligation": "0x32401a50e2e5ad7348dd574f5672697d09615a99c1f46b7143de92d5f681b7f4",
+  "refundObligation": "0xbf900ef50e29c21061aa0774f2323cfe114166b321feddd374bfd8a9cb9fb255",
+  "frozen_input_sha256": {
+    "foundry.toml": "74565b1341519f96a0b003da3fdcd08abf78c08f429a9b587fa83813599f483a",
+    "package-lock.json": "68e8bb95ce8d1174fac867632a788eef6e4d39b187285e0ab8d3d2877846fafb",
+    "packages/ava-sdk/dist/deployment.js": "93b30ad8c21bf1af0fc7127a7f54f0e489c24228dd2c4332752a57b755e0dcf0",
+    "packages/ava-sdk/dist/index.js": "0800f784bad59c90ec37381d3561adaad827f581b806e173d43cede5750b9edf",
+    "packages/ava-service/dist/server.js": "484980a2121c27815a8f027ee937a63caebc6b47fcd3bff07545d9da1d73f200",
+    "packages/ava-service/dist/testing.js": "2371a281f62188ab130900071d499c91beb2e82a64c940c8b5700e8f1ce866c2",
+    "src/apps/spark/v15/SparkV15MaterialProvisions.sol": "b090c88645a6092b7f79be43e732f8b120352b58eb9e2774794b630d497ac935",
+    "historical B1 replay.test.ts": "b8165256653bf0095a91fee0fb3098b92afe33199c67b429b4c4b9a3ccf2276b"
+  },
+  "deployment_artifact_sha256": {
+    "DeployAVACore.s.sol/DeployAVACore.json": "7d16cb84928dfceef474b0de4f507e03448853b53b95d03ec89744c64e209d79",
+    "DeploySparkV15OnExistingCore.s.sol/DeploySparkV15OnExistingCore.json": "5fa89029a4f57d1376f7df90021add8575e4348f4db5af16d317923293fd0811",
+    "AVAGovernanceKernel.sol/AVAGovernanceKernel.json": "2d3e977b93e364eed6df36d8e661567c374b028ca21192c361b9b2feae6a8bc6",
+    "AVARequestAllocation.sol/AVARequestAllocation.json": "96f4d782f0123643f894187833bf90c4c50599147c1e84513b21ac0048a7c7a8",
+    "SparkV15MaterialProvisions.sol/SparkV15MaterialProvisions.json": "c8a00538e3cf5487bba3cae39f776cb41fd4b73a539d08f7c82f0158148b0081",
+    "SparkV15Booking.sol/SparkV15Booking.json": "53df4ae8c41fd66ce2fcd43577c58c9d6f9772699a29e758cd00b792330e87b6"
+  },
+  "observations": {
+    "oldPayment": {
+      "hash": "0x9c7fdad7025770306c6eb4657f95863c70012f6289ce9aca22d9157161ad0c0c",
+      "timestamp": "1795437774",
+      "receiptId": "1",
+      "signer": "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
+      "paid": {
+        "chainId": 31337,
+        "emitter": "0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae",
+        "eventName": "PaymentReceived",
+        "transactionHash": "0x9c7fdad7025770306c6eb4657f95863c70012f6289ce9aca22d9157161ad0c0c",
+        "blockHash": "0xa521803420a21d9c753d73e04407d8482a51a3d85cbdd08cf830e4936072a19d",
+        "blockNumber": "228",
+        "logIndex": 1,
+        "confirmations": 1,
+        "args": {
+          "obligationId": "0x1f71df6b568325860755ed9ff7252c9a1d12d663750c96aadecdb5581c3953f5",
+          "requestId": "1",
+          "receiptId": "1",
+          "executor": "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
+          "recipient": "0xdF3e18d64BC6A983f673Ab319CCaE4f1a57C7097",
+          "creditAccount": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "amount": "2"
+        }
+      },
+      "transfer": {
+        "chainId": 31337,
+        "emitter": "0x0b306bf915c4d645ff596e518faf3f9669b97016",
+        "eventName": "Transfer",
+        "transactionHash": "0x9c7fdad7025770306c6eb4657f95863c70012f6289ce9aca22d9157161ad0c0c",
+        "blockHash": "0xa521803420a21d9c753d73e04407d8482a51a3d85cbdd08cf830e4936072a19d",
+        "blockNumber": "228",
+        "logIndex": 0,
+        "confirmations": 1,
+        "args": {
+          "from": "0x2b961E3959b79326A8e7F64Ef0d2d825707669b5",
+          "to": "0xdF3e18d64BC6A983f673Ab319CCaE4f1a57C7097",
+          "value": "2"
+        }
+      }
+    },
+    "earlyVerification": {
+      "hash": "0x18b84e4596784bd4323dbe32ec7ae4affa0d4cb78ee4f49d5d56d67254213500",
+      "timestamp": "1795437778",
+      "receiptId": "1",
+      "evidenceId": "34",
+      "signer": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+      "event": {
+        "chainId": 31337,
+        "emitter": "0xfbc22278a96299d91d41c453234d97b4f5eb9b2d",
+        "eventName": "MaterialReceiptVerified",
+        "transactionHash": "0x18b84e4596784bd4323dbe32ec7ae4affa0d4cb78ee4f49d5d56d67254213500",
+        "blockHash": "0xe13c976109fb154ccccf2182ee7bc29c054a3b85c59e935088ef4bffd3752b5c",
+        "blockNumber": "231",
+        "logIndex": 0,
+        "confirmations": 1,
+        "args": {
+          "receiptId": "1",
+          "obligationId": "0x1f71df6b568325860755ed9ff7252c9a1d12d663750c96aadecdb5581c3953f5",
+          "verifiedAt": "1795437778",
+          "evidenceId": "34"
+        }
+      }
+    },
+    "nextPayment": {
+      "hash": "0x077980468086e872fe51078de5104f75d6be503b806c4396d144365e10ce41f6",
+      "timestamp": "1795437779",
+      "receiptId": "2",
+      "signer": "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
+      "paid": {
+        "chainId": 31337,
+        "emitter": "0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae",
+        "eventName": "PaymentReceived",
+        "transactionHash": "0x077980468086e872fe51078de5104f75d6be503b806c4396d144365e10ce41f6",
+        "blockHash": "0x51208f9b72bb9d7b301f5c60b5627edbdb3d53ac02a8da45a3ef53f836d68b42",
+        "blockNumber": "233",
+        "logIndex": 1,
+        "confirmations": 1,
+        "args": {
+          "obligationId": "0x32401a50e2e5ad7348dd574f5672697d09615a99c1f46b7143de92d5f681b7f4",
+          "requestId": "2",
+          "receiptId": "2",
+          "executor": "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
+          "recipient": "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+          "creditAccount": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "amount": "4"
+        }
+      },
+      "transfer": {
+        "chainId": 31337,
+        "emitter": "0x0b306bf915c4d645ff596e518faf3f9669b97016",
+        "eventName": "Transfer",
+        "transactionHash": "0x077980468086e872fe51078de5104f75d6be503b806c4396d144365e10ce41f6",
+        "blockHash": "0x51208f9b72bb9d7b301f5c60b5627edbdb3d53ac02a8da45a3ef53f836d68b42",
+        "blockNumber": "233",
+        "logIndex": 0,
+        "confirmations": 1,
+        "args": {
+          "from": "0x2b961E3959b79326A8e7F64Ef0d2d825707669b5",
+          "to": "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+          "value": "4"
+        }
+      }
+    },
+    "nextVerification": {
+      "hash": "0x2a05ace069bf7a99bcb3cb99df3275097704a2b991356af78ff46fa65617c07a",
+      "timestamp": "1795437782",
+      "receiptId": "2",
+      "evidenceId": "35",
+      "signer": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+      "event": {
+        "chainId": 31337,
+        "emitter": "0xfbc22278a96299d91d41c453234d97b4f5eb9b2d",
+        "eventName": "MaterialReceiptVerified",
+        "transactionHash": "0x2a05ace069bf7a99bcb3cb99df3275097704a2b991356af78ff46fa65617c07a",
+        "blockHash": "0x63e6aa830026d3fd70d22557690f260acec67b7d1dd8b9651b016b4eb9d9ae7a",
+        "blockNumber": "236",
+        "logIndex": 0,
+        "confirmations": 1,
+        "args": {
+          "receiptId": "2",
+          "obligationId": "0x32401a50e2e5ad7348dd574f5672697d09615a99c1f46b7143de92d5f681b7f4",
+          "verifiedAt": "1795437782",
+          "evidenceId": "35"
+        }
+      }
+    },
+    "oldArchive": {
+      "hash": "0xb9761a08da10f5b9054a98bc87fe6419d306d4a1bf4081089745105d505773d4",
+      "receiptId": "1",
+      "filedAt": "1795523636"
+    },
+    "nextArchive": {
+      "hash": "0xec3e8948336adf1c97d661029d36f972b1e932d3dea72082206b1ab94c8d7d11",
+      "receiptId": "2",
+      "filedAt": "1795523636"
+    },
+    "actualRefund": {
+      "obligationId": "0xbf900ef50e29c21061aa0774f2323cfe114166b321feddd374bfd8a9cb9fb255",
+      "requestId": "3",
+      "receiptId": "3",
+      "executor": "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
+      "recipient": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
+      "creditAccount": "0xe16d552123724c72f971152c561ee19df10ee2b30a04a8479247ecf48deedebc",
+      "amount": "2"
+    },
+    "actualRefundHash": "0x67b07e8c3deae8690fa0b496ba55e60a5ba98941c50152ba226ccace51f01499",
+    "transaction_readbacks": {
+      "M42 approval 2": {
+        "chainId": 31337,
+        "emitter": "0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae",
+        "eventName": "PaymentApprovalRecorded",
+        "transactionHash": "0x815f42d9b3ba6b57d90b008451c78d066706cf480b3eab67f8def6b140a25edd",
+        "blockHash": "0xf4e64c8acef98c2548efdcf20123fcead6a3e37d924631548c7a13b31734aaf1",
+        "blockNumber": "225",
+        "logIndex": 2,
+        "confirmations": 1,
+        "args": {
+          "obligationId": "0x32401a50e2e5ad7348dd574f5672697d09615a99c1f46b7143de92d5f681b7f4",
+          "requestId": "2",
+          "approver": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+        },
+        "from": "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc",
+        "to": "0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      "T100 refund paid": {
+        "chainId": 31337,
+        "emitter": "0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae",
+        "eventName": "PaymentReceived",
+        "transactionHash": "0x67b07e8c3deae8690fa0b496ba55e60a5ba98941c50152ba226ccace51f01499",
+        "blockHash": "0x683f3a2838d9ce0bad13a185ab9166bf16aab051505b0ddfb806b6be59e3370d",
+        "blockNumber": "245",
+        "logIndex": 0,
+        "confirmations": 1,
+        "args": {
+          "obligationId": "0xbf900ef50e29c21061aa0774f2323cfe114166b321feddd374bfd8a9cb9fb255",
+          "requestId": "3",
+          "receiptId": "3",
+          "executor": "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
+          "recipient": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
+          "creditAccount": "0xe16d552123724c72f971152c561ee19df10ee2b30a04a8479247ecf48deedebc",
+          "amount": "2"
+        },
+        "from": "0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f",
+        "to": "0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae"
+      },
+      "M42 material receipt filed 1": {
+        "chainId": 31337,
+        "emitter": "0xfbc22278a96299d91d41c453234d97b4f5eb9b2d",
+        "eventName": "MaterialReceiptFiled",
+        "transactionHash": "0xb9761a08da10f5b9054a98bc87fe6419d306d4a1bf4081089745105d505773d4",
+        "blockHash": "0x70ef755b62a6fd6c457f5b885baec846f25ac984ee4b6018b6ce257ead60b180",
+        "blockNumber": "246",
+        "logIndex": 0,
+        "confirmations": 1,
+        "args": {
+          "receiptId": "1",
+          "filedAt": "1795523636"
+        },
+        "from": "0x976ea74026e726554db657fa54763abd0c3a0aa9",
+        "to": "0xfbc22278a96299d91d41c453234d97b4f5eb9b2d"
+      },
+      "M42 material receipt filed 2": {
+        "chainId": 31337,
+        "emitter": "0xfbc22278a96299d91d41c453234d97b4f5eb9b2d",
+        "eventName": "MaterialReceiptFiled",
+        "transactionHash": "0xec3e8948336adf1c97d661029d36f972b1e932d3dea72082206b1ab94c8d7d11",
+        "blockHash": "0x3cf2f99115895c87d46507e646cbba79256a1ae72bf4730aca74e84ec02831ba",
+        "blockNumber": "247",
+        "logIndex": 0,
+        "confirmations": 1,
+        "args": {
+          "receiptId": "2",
+          "filedAt": "1795523636"
+        },
+        "from": "0x976ea74026e726554db657fa54763abd0c3a0aa9",
+        "to": "0xfbc22278a96299d91d41c453234d97b4f5eb9b2d"
+      }
+    },
+    "approval_chain": {
+      "objectId": "2",
+      "recognisedStateId": "2",
+      "requestId": "2",
+      "createdEvent": {
+        "chainId": 31337,
+        "emitter": "0x0dcd1bf9a1b36ce34237eeafef220932846bcd82",
+        "eventName": "RequestCreated",
+        "transactionHash": "0xef863d94410002bb199dd2b499d777478ee02bec61b22bdfd15bdde4620efedf",
+        "blockHash": "0x459cba157988586a4315d892f4d72d996ffa7133af40ad048f5f0bf5d9b6c767",
+        "blockNumber": "223",
+        "logIndex": 1,
+        "confirmations": 3,
+        "args": {
+          "requestId": "2",
+          "recognisedStateId": "2",
+          "appId": "0x00f0d8dff1f09f9f220a08efcce9a4ce3e6ffe1f314304ad51c8044881ec2c51",
+          "creator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+        }
+      },
+      "allocationEvent": {
+        "chainId": 31337,
+        "emitter": "0x0dcd1bf9a1b36ce34237eeafef220932846bcd82",
+        "eventName": "RequestApproved",
+        "transactionHash": "0x92213635564c605cd3e3ff523670533a46da8b0c8258233f742588943b93dd91",
+        "blockHash": "0xf49fa3a50141c11287ff2c3ea661a406c5456e87082bf43a53c1c17131ff6aa3",
+        "blockNumber": "224",
+        "logIndex": 0,
+        "confirmations": 2,
+        "args": {
+          "requestId": "2",
+          "allocator": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+          "authorityId": "0x5daa9c6e4a9d2bd323c5e2dddc8623d768b44775194beb94345b5622bf807bd6"
+        }
+      },
+      "appApprovalReceipt": {
+        "chainId": 31337,
+        "emitter": "0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae",
+        "eventName": "PaymentApprovalRecorded",
+        "transactionHash": "0x815f42d9b3ba6b57d90b008451c78d066706cf480b3eab67f8def6b140a25edd",
+        "blockHash": "0xf4e64c8acef98c2548efdcf20123fcead6a3e37d924631548c7a13b31734aaf1",
+        "blockNumber": "225",
+        "logIndex": 2,
+        "confirmations": 1,
+        "args": {
+          "obligationId": "0x32401a50e2e5ad7348dd574f5672697d09615a99c1f46b7143de92d5f681b7f4",
+          "requestId": "2",
+          "approver": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+        }
+      },
+      "consumed": {
+        "chainId": 31337,
+        "emitter": "0x0dcd1bf9a1b36ce34237eeafef220932846bcd82",
+        "eventName": "RequestConsumed",
+        "transactionHash": "0x815f42d9b3ba6b57d90b008451c78d066706cf480b3eab67f8def6b140a25edd",
+        "blockHash": "0xf4e64c8acef98c2548efdcf20123fcead6a3e37d924631548c7a13b31734aaf1",
+        "blockNumber": "225",
+        "logIndex": 0,
+        "confirmations": 1,
+        "args": {
+          "requestId": "2",
+          "executor": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
+          "triggeredBy": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+        }
+      },
+      "completed": {
+        "chainId": 31337,
+        "emitter": "0x0dcd1bf9a1b36ce34237eeafef220932846bcd82",
+        "eventName": "RequestCompleted",
+        "transactionHash": "0x815f42d9b3ba6b57d90b008451c78d066706cf480b3eab67f8def6b140a25edd",
+        "blockHash": "0xf4e64c8acef98c2548efdcf20123fcead6a3e37d924631548c7a13b31734aaf1",
+        "blockNumber": "225",
+        "logIndex": 1,
+        "confirmations": 1,
+        "args": {
+          "requestId": "2",
+          "effectHash": "0xff0b56318b52b27047d574046cedb6ee0e9fc82bbbe8aa8ea5e92e8129521bcc"
+        }
+      },
+      "approval": {
+        "terms": {
+          "obligationId": "0x32401a50e2e5ad7348dd574f5672697d09615a99c1f46b7143de92d5f681b7f4",
+          "executor": "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
+          "ceiling": "4",
+          "validThrough": "1795438647",
+          "replacesRequestId": "0"
+        },
+        "approver": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+        "authorityId": "0x5daa9c6e4a9d2bd323c5e2dddc8623d768b44775194beb94345b5622bf807bd6",
+        "grantedAt": "1795437760",
+        "paid": "0",
+        "stoppedAt": "0",
+        "stoppedByCase": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "beneficiaryVersion": "0"
+      }
+    },
+    "execution_readback": {
+      "blockHash": "0x39f331959c608aa1424d65c354d9b1bd5231fe366ffb0c8a13000c9e9fda89a2",
+      "timestamp": "1795437779",
+      "item": {
+        "terms": {
+          "lessonId": "0x000000000000000000000000000000000000000000000000000000000000002a",
+          "paymentPart": "0x15c4776a07490e785f4b628d471a36c27985c98c641844ded84fd28abdf26730",
+          "recipient": "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+          "originalDebitAccount": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "originalDebitAmount": "0",
+          "amount": "4",
+          "agreedStart": "0",
+          "dueAt": "1795437847",
+          "executionDeadline": "1795438747",
+          "legalDeadline": "0",
+          "postLiftDeadline": "1795438847",
+          "postLiftPeriod": "0",
+          "dueAtExact": true,
+          "executionDeadlineExact": true,
+          "legalDeadlineExact": false,
+          "postLiftDeadlineExact": true,
+          "settlementProposer": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "settlementApprover": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+        },
+        "packageId": "1",
+        "evidenceId": "31",
+        "commitment": "0xa4d4884a7853bc6a317fc7af7aa12bf5495a83f2ce788bf6a115fb40af5de5bf",
+        "paid": "0",
+        "version": "2",
+        "firstApprovalRequestId": "2",
+        "eligibleFrom": "1795437748",
+        "eligibilityExact": true,
+        "correctAmount": "4",
+        "beneficiary": "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+        "destination": "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+        "beneficiaryVersion": "0"
+      },
+      "hold": {
+        "formalCoverageStartedAt": "0",
+        "firstFullReleaseAt": "0",
+        "postLiftCutoff": "0",
+        "lastFullReleaseAt": "0",
+        "postLiftClockEvidenceId": "0",
+        "activeFormalHolds": "0",
+        "active": false
+      },
+      "cashToken": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+      "pool": "0x2b961E3959b79326A8e7F64Ef0d2d825707669b5"
+    },
+    "beforeIssue": {
+      "blockNumber": "225",
+      "blockHash": "0xf4e64c8acef98c2548efdcf20123fcead6a3e37d924631548c7a13b31734aaf1",
+      "timestamp": "1795437760",
+      "vault": "202",
+      "tHeld": "8",
+      "tRefund": "2",
+      "refundStatus": [
+        "1",
+        "2",
+        "0"
+      ],
+      "tCredit": "0",
+      "mHeld": "182",
+      "mBeyond": "0",
+      "aggregateProtection": "198"
+    },
+    "common": {
+      "blockNumber": "228",
+      "blockHash": "0xa521803420a21d9c753d73e04407d8482a51a3d85cbdd08cf830e4936072a19d",
+      "timestamp": "1795437774",
+      "vault": "200",
+      "tHeld": "8",
+      "tRefund": "2",
+      "refundStatus": [
+        "1",
+        "2",
+        "0"
+      ],
+      "tCredit": "4",
+      "mHeld": "182",
+      "mBeyond": "0",
+      "aggregateProtection": "200"
+    },
+    "check": {
+      "blockNumber": "232",
+      "blockHash": "0x39f331959c608aa1424d65c354d9b1bd5231fe366ffb0c8a13000c9e9fda89a2",
+      "timestamp": "1795437779",
+      "vault": "200",
+      "tHeld": "8",
+      "tRefund": "2",
+      "refundStatus": [
+        "1",
+        "2",
+        "0"
+      ],
+      "tCredit": "4",
+      "mHeld": "182",
+      "mBeyond": "0",
+      "aggregateProtection": "200"
+    },
+    "afterNextPayment": {
+      "blockNumber": "233",
+      "blockHash": "0x51208f9b72bb9d7b301f5c60b5627edbdb3d53ac02a8da45a3ef53f836d68b42",
+      "timestamp": "1795437779",
+      "vault": "196",
+      "tHeld": "8",
+      "tRefund": "2",
+      "refundStatus": [
+        "1",
+        "2",
+        "0"
+      ],
+      "tCredit": "4",
+      "mHeld": "182",
+      "mBeyond": "0",
+      "aggregateProtection": "196"
+    },
+    "beforeContinuation": {
+      "blockNumber": "236",
+      "blockHash": "0x63e6aa830026d3fd70d22557690f260acec67b7d1dd8b9651b016b4eb9d9ae7a",
+      "timestamp": "1795437782",
+      "vault": "196",
+      "tHeld": "8",
+      "tRefund": "2",
+      "refundStatus": [
+        "1",
+        "2",
+        "0"
+      ],
+      "tCredit": "4",
+      "mHeld": "182",
+      "mBeyond": "0",
+      "aggregateProtection": "196"
+    },
+    "afterRefundPayment": {
+      "blockNumber": "245",
+      "blockHash": "0x683f3a2838d9ce0bad13a185ab9166bf16aab051505b0ddfb806b6be59e3370d",
+      "timestamp": "1795523636",
+      "vault": "196",
+      "tHeld": "8",
+      "tRefund": "0",
+      "refundStatus": [
+        "1",
+        "2",
+        "2"
+      ],
+      "tCredit": "4",
+      "mHeld": "182",
+      "mBeyond": "0",
+      "aggregateProtection": "196"
+    },
+    "afterFiling": {
+      "blockNumber": "247",
+      "blockHash": "0x3cf2f99115895c87d46507e646cbba79256a1ae72bf4730aca74e84ec02831ba",
+      "timestamp": "1795523636",
+      "vault": "196",
+      "tHeld": "8",
+      "tRefund": "0",
+      "refundStatus": [
+        "1",
+        "2",
+        "2"
+      ],
+      "tCredit": "4",
+      "mHeld": "182",
+      "mBeyond": "0",
+      "aggregateProtection": "196"
+    },
+    "accountBefore": {
+      "blockNumber": "244",
+      "blockHash": "0x045114baaef188c2307d876181fd37ec9753c3b70efda93a657f2f57a5f6b433",
+      "ledger": {
+        "held": "8",
+        "earned": "2",
+        "refundBacking": "2",
+        "reserved": "196",
+        "vault": "196",
+        "payerCredit": "0",
+        "customerCredit": "4",
+        "compensationCredit": "4",
+        "releaseCeiling": "6",
+        "refundStatus": [
+          "1",
+          "2",
+          "0"
+        ]
+      }
+    },
+    "accountAfter": {
+      "blockNumber": "245",
+      "blockHash": "0x683f3a2838d9ce0bad13a185ab9166bf16aab051505b0ddfb806b6be59e3370d",
+      "ledger": {
+        "held": "8",
+        "earned": "2",
+        "refundBacking": "0",
+        "reserved": "196",
+        "vault": "196",
+        "payerCredit": "2",
+        "customerCredit": "4",
+        "compensationCredit": "4",
+        "releaseCeiling": "6",
+        "refundStatus": [
+          "1",
+          "2",
+          "2"
+        ]
+      }
+    }
+  },
+  "archivedDeploymentReadback": {
+    "chainId": 31337,
+    "app": {
+      "appId": "0x00f0d8dff1f09f9f220a08efcce9a4ce3e6ffe1f314304ad51c8044881ec2c51",
+      "workflowKey": "0xac8cd3c5b5f03501447db074660c2009cd0ede4f5d45e44eda9cd36b640f67de",
+      "packageId": "1",
+      "disclosurePolicyId": "1"
+    },
+    "moduleRuntimeKeccak256": {
+      "kernel": {
+        "address": "0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0",
+        "hash": "0xa81b96a8d894c2817e20d9b81cf0a79f2a454ec8380b4f46db7ef77e5eb419a0"
+      },
+      "requests": {
+        "address": "0x0dcd1bf9a1b36ce34237eeafef220932846bcd82",
+        "hash": "0xdf0200eb121bb9aa1c4423ff0ffa5be299ea115aa6e5a965850b3a108fec0cf4"
+      },
+      "booking": {
+        "address": "0xc6e7df5e7b4f2a278906862b61205850344d4e7d",
+        "hash": "0x94ce83ce7c5c7bd85d36f52e44680cc7a3d6f0941425df84fecbee34205f9004"
+      },
+      "provisions": {
+        "address": "0xfbc22278a96299d91d41c453234d97b4f5eb9b2d",
+        "hash": "0xd242985df4000a4f6e3483d2b4884f303a311fa55dd9b29e8d548c25df3592a4"
+      },
+      "payments": {
+        "address": "0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae",
+        "hash": "0xec351800ffa1b82a8a72345ecb69b1139de9431751941347fc338143e7d67504"
+      },
+      "funds": {
+        "address": "0x2b961e3959b79326a8e7f64ef0d2d825707669b5",
+        "hash": "0xc9b292870c4400dc10791f90974ad18f7370d058510dbb375983b315d0f68503"
+      },
+      "token": {
+        "address": "0x0b306bf915c4d645ff596e518faf3f9669b97016",
+        "hash": "0x65bc650f2cfe6bb03f3fff170e7f09efe01fb4d9661a038cfe8515d18abc0366"
+      },
+      "reserve": {
+        "address": "0x49fd2be640db2910c2fab69bb8531ab6e76127ff",
+        "hash": "0xe117c7e1dbe0e27e7af8361024aa160d3a2d7f45495f79ccd1cde5f0fc028500"
+      }
+    }
+  }
+}

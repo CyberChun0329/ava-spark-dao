@@ -1,0 +1,7 @@
+branch	stage	time	cash	base_reserved	material_protection	additional_protection	proposed_material	proposed_additional
+早核	before_payment	1000045	153	141	10	6	6	6
+早核	after_payment	1000045	149	137	10	10	10	10
+早核	both_verified	1000047	149	137	6	6	6	6
+晚核	before_payment	1000045	153	141	12	8	8	6
+晚核	after_payment	1000045	149	137	12	12	12	12
+晚核	both_verified	1000047	149	137	6	6	6	6

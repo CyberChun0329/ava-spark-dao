@@ -1,0 +1,129 @@
+--- a/test/spark/v15/MaterialsFunding.t.sol
++++ b/test/spark/v15/MaterialsFunding.t.sol
+@@ -33,6 +33,8 @@
+ interface MaterialsObservationVm {
+     function roll(uint256 blockNumber) external;
+     function setBlockhash(uint256 blockNumber, bytes32 blockHash) external;
++    function snapshotState() external returns (uint256);
++    function revertToState(uint256 snapshotId) external returns (bool);
+ }
+ 
+ contract MaterialsFundingTest is RequestAllocationFixture {
+@@ -85,6 +87,18 @@
+     SparkV15ReviewCases private cases;
+     bytes32 private formId;
+     bytes32 private refund;
++
++    event FundedReceiptTiming(
++        bool indexed early,
++        uint8 indexed stage,
++        uint256 time,
++        uint256 cash,
++        uint256 base,
++        uint256 materialProtection,
++        uint256 additionalProtection,
++        uint256 proposedMaterialProtection,
++        uint256 proposedAdditionalProtection
++    );
+ 
+     function setUp() public {
+         requestVm.warp(EPOCH + 1);
+@@ -674,8 +688,98 @@
+         uint256 secondReceipt = payments.pay(secondApproval, 4);
+         require(payments.getReceipt(secondReceipt).paidAt == sameSecond, "second payment changed time");
+         require(token.balanceOf(SECOND_HOLDER) == 4 && token.balanceOf(address(funds)) == 143, "second payment absent");
++    }
++
++    function testFundedReceiptTimingAllowsBothActualPayments() public {
++        (uint256 firstReceipt, uint256 approval, bytes32 scope) = _prepareM3();
++        bytes32 obligation = provisions.entitlementFor(scope, SECOND_HOLDER);
++
++        // This is the funded control of the tight Forge case, with the same extra cash in both branches.
++        token.mint(PROVIDER, 6);
++        requestVm.prank(PROVIDER);
++        require(token.transfer(address(funds), 6), "provider did not fund the control");
++        require(token.balanceOf(address(funds)) == 153 && funds.reservedUnits() == 141, "wrong common funding cut");
++        require(provisions.getMaterialReceipt(firstReceipt).verifiedAt == 0, "first transfer already verified");
++        uint256 common = observationVm.snapshotState();
++        _performFundedReceiptBranch(true, firstReceipt, approval, obligation);
++        require(observationVm.revertToState(common), "common prefix could not be restored");
++        require(token.balanceOf(address(funds)) == 153 && funds.reservedUnits() == 141, "wrong restored funding cut");
++        require(provisions.getMaterialReceipt(firstReceipt).verifiedAt == 0, "verification survived the restore");
++        _performFundedReceiptBranch(false, firstReceipt, approval, obligation);
++    }
++
++    function _performFundedReceiptBranch(bool early, uint256 firstReceipt, uint256 approval, bytes32 obligation)
++        private
++    {
++        requestVm.warp(EPOCH + 44);
++        if (early) _verifyReceipt(firstReceipt, EPOCH + 44);
++        requestVm.warp(EPOCH + 45);
++        uint256 currentMaterial = early ? 10 : 12;
++        uint256 proposedMaterial = early ? 6 : 8;
++        require(provisions.paymentProtection(LESSON, bytes32(0), 0) == currentMaterial, "wrong current material");
++        require(provisions.paymentProtection(LESSON, obligation, 4) == proposedMaterial, "wrong proposed material");
++        require(
++            provisions.getMaterialReceipt(firstReceipt).verifiedAt == (early ? EPOCH + 44 : 0),
++            "wrong first receipt availability"
++        );
++        SparkV15Payments.Approval memory prior = payments.getApproval(approval);
++        require(
++            prior.terms.obligationId == obligation && prior.terms.executor == EXECUTOR && prior.terms.ceiling == 4
++                && prior.paid == 0 && funds.paymentReserved(obligation) == 4,
++            "second approval changed"
++        );
++        _recordFundedReceiptCut(early, 0, obligation, 4);
++        requestVm.prank(EXECUTOR);
++        uint256 secondReceiptId = payments.pay(approval, 4);
++        SparkV15Payments.PaymentReceipt memory secondReceipt = payments.getReceipt(secondReceiptId);
++        require(
++            secondReceipt.obligationId == obligation && secondReceipt.approvalRequestId == approval
++                && secondReceipt.executor == EXECUTOR && secondReceipt.recipient == SECOND_HOLDER
++                && secondReceipt.amount == 4 && secondReceipt.paidAt == EPOCH + 45,
++            "unexpected native payment receipt"
++        );
++        require(
++            token.balanceOf(FIRST_HOLDER) == 2 && token.balanceOf(SECOND_HOLDER) == 4
++                && token.balanceOf(address(funds)) == 149,
++            "actual balances did not reflect the transfer"
++        );
++        require(
++            funds.reservedUnits() == 137 && funds.paymentReserved(obligation) == 0
++                && payments.getApproval(approval).paid == 4 && funds.paymentReserved(refund) == 120
++                && funds.creditBalance(funds.creditAccount(CREDIT_OWNER)) == 17,
++            "other protection or approval changed"
++        );
++        require(provisions.getMaterialReceipt(secondReceiptId).verifiedAt == 0, "payment verified itself");
++        _recordFundedReceiptCut(early, 1, bytes32(0), 0);
++
++        requestVm.warp(EPOCH + 46);
++        if (!early) _verifyReceipt(firstReceipt, EPOCH + 46);
++        requestVm.warp(EPOCH + 47);
++        _verifyReceipt(secondReceiptId, EPOCH + 47);
++        require(provisions.paymentProtection(LESSON, bytes32(0), 0) == 6, "remaining material missing");
++        require(token.balanceOf(address(funds)) == 149 && funds.reservedUnits() == 137, "verification moved funds");
++        _recordFundedReceiptCut(early, 2, bytes32(0), 0);
+     }
+ 
++    function _recordFundedReceiptCut(bool early, uint8 stage, bytes32 obligation, uint128 proposed) private {
++        SparkV15MaterialBacking backing = provisions.MATERIAL_BACKING();
++        uint256 cash = token.balanceOf(address(funds));
++        uint256 base = funds.reservedUnits();
++        uint256 additional = backing.requiredBeyondLessonHold(LESSON, bytes32(0), 0, false);
++        require(cash >= base + additional, "current protection exceeds actual funding");
++        emit FundedReceiptTiming(
++            early,
++            stage,
++            block.timestamp,
++            cash,
++            base,
++            provisions.paymentProtection(LESSON, bytes32(0), 0),
++            additional,
++            provisions.paymentProtection(LESSON, obligation, proposed),
++            backing.requiredBeyondLessonHold(LESSON, obligation, proposed, false)
++        );
++    }
++
+     function testSameSecondVerifiedReceiptsBackNextProvisionAtOriginalCash() public {
+         (uint256 firstReceipt, uint256 secondApproval,) = _prepareM3(BOOKING_MATERIAL_COST);
+         uint64 sameSecond = EPOCH + 40;

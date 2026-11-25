@@ -4,7 +4,7 @@ The ledgers below use synthetic classes, accounts and test assets. They record s
 
 ## B1 run-04
 
-This was an earlier local historical run through the SDK on Anvil 1.5.1, chain 31337, with Solc 0.8.26 and Cancun. The archived Spark material module was `b090c88645a6092b7f79be43e732f8b120352b58eb9e2774794b630d497ac935`. The [selected readbacks](data/b1-run-04.json) give the source-record digests, block and log coordinates, obligation and receipt IDs, clock fields and accounting outcomes. The contract-level replay at published Preview 2 is [`testOriginalB1ContractSequence`](https://github.com/CyberChun0329/ava-spark-dao/blob/a43a56eb41ab904edf19527afae603313ae1fabc/test/spark/v15/InstalledOriginalB1.t.sol#L126). Its transfers, verification and refund give a separate implementation check. The historical SDK sequence and on-chain filing are established by the archived run.
+This was an earlier local historical run through the SDK on Anvil 1.5.1, chain 31337, with Solc 0.8.26 and Cancun. The archived Spark material module was `b090c88645a6092b7f79be43e732f8b120352b58eb9e2774794b630d497ac935`. The [selected readbacks](data/b1-run-04.json) give the source-record digests, block and log coordinates, obligation and receipt IDs, clock fields and accounting outcomes. The contract-level replay at published Preview 2 is [`testOriginalB1ContractSequence`](https://github.com/CyberChun0329/ava-spark-dao/blob/a43a56eb41ab904edf19527afae603313ae1fabc/test/spark/v15/InstalledOriginalB1.t.sol#L126). Its transfers, verification and refund give a separate implementation check. The [historical provenance record](b1-provenance.md) publishes selected decoded receipts, contract and role addresses, and the available chain and runtime identities. The original SDK execution and transaction authentication rely on the archive.
 
 | Block | Saved observation |
 | ---: | --- |
@@ -29,7 +29,7 @@ An older [G5 two-block export](data/g5-two-blocks.json) records material protect
 
 ### Sufficient-funding control
 
-The saved `testFundedReceiptTimingAllowsBothActualPayments` is an earlier offline Forge test, using the material source SHA-256 `f131231a6627122792d18e07b8b4f859064f98919d3229eca6d03b714e8cc79b`. Test source SHA-256 is `e706636f3cc4f4b0dc2322d30f1e302e70596329f2ba18e20b331557e0042235`. The exported rows come from trace SHA-256 `804f24db9c4fc157101a1cc09a71bc4a243ca9cba2ce2d80b5d271a2dc2e73cc`. The checked-in Preview 2 tests above exercise the tight-balance contrast and same-second consumer. The paired sufficient-funding history is a saved result of this earlier targeted fixture.
+The saved `testFundedReceiptTimingAllowsBothActualPayments` is an earlier offline Forge test, using the material source SHA-256 `f131231a6627122792d18e07b8b4f859064f98919d3229eca6d03b714e8cc79b`. Test source SHA-256 is `e706636f3cc4f4b0dc2322d30f1e302e70596329f2ba18e20b331557e0042235`. The exported rows come from trace SHA-256 `804f24db9c4fc157101a1cc09a71bc4a243ca9cba2ce2d80b5d271a2dc2e73cc`. The checked-in Preview 2 tests above exercise the tight-balance contrast and same-second consumer. The paired sufficient-funding history is a saved result of this earlier targeted fixture. The [historical fixture addition and selected trace lines](sufficient-funding/README.md) identify the exact test, compared state and scope of the preserved inputs.
 
 The test deposits an additional 6 in the common prefix, with the previous share of 2 already paid. Both branches then pay the same recipient 4 on the same obligation, approval request 2 and execution timestamp 1000045. First-receipt verification occurs at 1000044 or 1000046. Cash goes from 153 to 149 in both. Each payment uses the dedicated allocation of 4, and both branches keep the refund reserve of 120 and credit of 17 protected.
 
@@ -41,6 +41,10 @@ The test deposits an additional 6 in the common prefix, with the previous share 
 | Total protection after both verifications | 143 | 143 |
 
 The [six funding observations](data/sufficient-funding.tsv) show the component values and their read points. The [six selected frame readings](data/sufficient-funding-frames.tsv) total 984,159 gas for the early branch and 923,616 for the late branch. Each sum covers independent verification of the first receipt, payment of the second share and independent verification of the second receipt. Their order differs with the timing choice. These frames exclude earlier evidence registration, other fixture work, off-chain work, and any later filing. Forge restores a common state before the late branch. These are call-frame readings within one test, with its access and execution context. They do not identify transaction fees or the causal monetary cost of verifying earlier. [Cost comparison inputs](funding.md#comparing-the-resources-used-by-a-payment-history)
+
+### G3 renewal and observation times
+
+With a matched source, the published test records the next provision of 6. In the unlinked-source test, the materials-only provision need still reads 6, but the full funding requirement reads 12 and the renewal is refused. The [test record](g3-same-cut/README.md) identifies the different observation times and the status of a proposed common-time check.
 
 ## Ordinary one-to-one gas
 
@@ -61,7 +65,7 @@ The fixed calculation is `gas × 0.005 × 10⁻⁹ × 1,675 USD`. L1 data fees, 
 
 ### Reproduce the measurements
 
-For the individually registered Forge route, check out Preview 2, use its package lock, and run the targeted test below. The selected frame list identifies the calls to count, from `publishLesson` to `pay`. Count the seven independent Core and App approval calls and their support registration while excluding the enclosing test helper. Installation, minting, first recharge, views and fixture work sit outside the course total. The saved call frames came from a bytecode-matched build as recorded in [the compact provenance](data/ordinary-lesson.json).
+For the individually registered Forge route, check out Preview 2, use its package lock, and run the targeted test below. The selected frame list identifies the calls to count, from `publishLesson` to `pay`. Count the seven independent Core and App approval calls and their support registration while excluding the enclosing test helper. Installation, minting, first recharge, views and fixture work sit outside the course total. The saved frames come from the historical candidate identified in [the Preview 2 Forge provenance](forge-preview2/README.md). The record includes the compared bytecode objects, source identities, compiler settings and the original frame coordinates.
 
 ```sh
 npm ci --ignore-scripts

@@ -1,0 +1,139 @@
+// Historical fixture excerpt, not a standalone test. Original lines 1236–1373.
+    function _prepareM3() private returns (uint256 firstReceipt, uint256 secondApproval, bytes32 scopeId) {
+        return _prepareM3(M3_ORIGINAL_CHARGE);
+    }
+
+    function _prepareM3(bytes32 sourceRef)
+        private
+        returns (uint256 firstReceipt, uint256 secondApproval, bytes32 scopeId)
+    {
+        uint256 firstApproval;
+        (firstApproval, secondApproval, scopeId) = _prepareMaterialApprovals(sourceRef);
+        requestVm.warp(EPOCH + 40);
+        requestVm.prank(EXECUTOR);
+        firstReceipt = payments.pay(firstApproval, 2);
+        require(
+            payments.getReceipt(firstReceipt).paidAt == EPOCH + 40 && token.balanceOf(FIRST_HOLDER) == 2,
+            "missing first actual transfer"
+        );
+        require(token.balanceOf(address(funds)) == 147, "first payment did not leave ten potentially available");
+        require(provisions.getMaterialReceipt(firstReceipt).verifiedAt == 0, "transfer also verified itself");
+    }
+
+    function _prepareMaterialApprovals(bytes32 sourceRef)
+        private
+        returns (uint256 firstApproval, uint256 secondApproval, bytes32 scopeId)
+    {
+        _book(12, 0);
+        requestVm.warp(EPOCH + 20);
+        _recordProvision(MAIN, 6);
+        requestVm.warp(EPOCH + 21);
+        _recordProvision(OTHER, 6);
+        require(provisions.provisioningNeed(LESSON) == 12, "two estimates did not protect twelve");
+        _teach();
+        requestVm.warp(EPOCH + 33);
+        SparkV15Materials.UseCheck memory finding = SparkV15Materials.UseCheck(
+            formId,
+            MAIN,
+            EPOCH + 30,
+            EPOCH + 33,
+            SparkV15Materials.UseSource.LessonRecord,
+            keccak256("actual teaching service"),
+            keccak256("verified per-seat material use"),
+            false,
+            false,
+            bytes32(0)
+        );
+        uint256 proof = _materialEvidence(materials.ACTION_VERIFY_USE(), abi.encode(finding));
+        requestVm.prank(COORDINATOR);
+        materials.verifyUse(finding, proof);
+        requestVm.warp(EPOCH + 34);
+        SparkV15Materials.GrossInput memory gross =
+            SparkV15Materials.GrossInput(LESSON, MAIN, bytes32(0), sourceRef, EPOCH + 34, _forms());
+        proof = _materialEvidence(materials.ACTION_RECORD_GROSS(), abi.encode(gross));
+        requestVm.prank(COORDINATOR);
+        scopeId = materials.recordGross(gross, proof);
+        require(materials.getHistoricalCharge(scopeId, formId).amount == 6, "wrong gross from normal fee");
+        requestVm.warp(EPOCH + 35);
+        bytes32 firstPart = _entitlement(scopeId, FIRST_HOLDER);
+        bytes32 secondPart = _entitlement(scopeId, SECOND_HOLDER);
+        require(
+            funds.paymentReserved(firstPart) == 2 && funds.paymentReserved(secondPart) == 4, "wrong assigned shares"
+        );
+        requestVm.warp(EPOCH + 38);
+        firstApproval = _approveMaterial(firstPart, 2);
+        secondApproval = _approveMaterial(secondPart, 4);
+    }
+
+    function _teach() private {
+        requestVm.warp(EPOCH + 22);
+        bytes32 notice = keccak256("notice actually delivered");
+        uint256 proof = _evidence(booking.studentNoticeCommitment(formId, EPOCH + 22, notice));
+        requestVm.prank(COORDINATOR);
+        booking.recordStudentNotice(formId, EPOCH + 22, notice, proof);
+        proof = _evidence(booking.tutorNoticeCommitment(LESSON, CHANNEL, EPOCH + 22, notice));
+        requestVm.prank(COORDINATOR);
+        booking.recordTutorNotice(LESSON, CHANNEL, EPOCH + 22, notice, proof);
+        requestVm.warp(EPOCH + 30);
+        address[] memory attending = new address[](1);
+        attending[0] = CUSTOMER;
+        SparkV15Booking.StartObservation memory start =
+            SparkV15Booking.StartObservation(EPOCH + 30, true, attending, keccak256("actual start"), bytes32(0));
+        proof = _evidence(booking.teachingStartCommitment(LESSON, start));
+        requestVm.prank(VERIFIER_ACTOR);
+        booking.recordTeachingStarted(LESSON, start, proof);
+        requestVm.warp(EPOCH + 32);
+        bytes32 end = keccak256("actual end");
+        proof = _evidence(booking.teachingEndCommitment(LESSON, EPOCH + 32, end));
+        requestVm.prank(VERIFIER_ACTOR);
+        booking.recordTeachingEnded(LESSON, EPOCH + 32, end, proof);
+    }
+
+    function _entitlement(bytes32 scopeId, address holder) private returns (bytes32 obligationId) {
+        SparkV15MaterialProvisions.EntitlementInput memory input = SparkV15MaterialProvisions.EntitlementInput(
+            scopeId, holder, holder, EPOCH + 35, EPOCH + 80, keccak256("verified historical holder shares")
+        );
+        (SparkV15Payments.PaymentTerms memory terms, bytes32 basis) =
+            provisions.previewEntitlement(input, VERIFIER_ACTOR);
+        bytes32 schedule =
+            keccak256(abi.encode(keccak256("spark.v1.5.material-schedule"), basis, input.verifiedAt, true));
+        uint256 proof = _evidence(payments.paymentEvidenceCommitment(terms, schedule));
+        requestVm.prank(VERIFIER_ACTOR);
+        return provisions.establishEntitlement(input, proof, _authority(ROLE_VERIFIER));
+    }
+
+    function _approveMaterial(bytes32 obligationId, uint128 amount) private returns (uint256 requestId) {
+        return _approveMaterialThrough(obligationId, amount, EPOCH + 60);
+    }
+
+    function _approveMaterialThrough(bytes32 obligationId, uint128 amount, uint64 through)
+        private
+        returns (uint256 requestId)
+    {
+        SparkV15Payments.ApprovalTerms memory terms =
+            SparkV15Payments.ApprovalTerms(obligationId, EXECUTOR, amount, through, 0);
+        bytes32 parameters = payments.approvalParameters(terms);
+        uint256 status = _createRequestState(
+            address(payments), SparkV15.RESPONSE_APPROVE_PAYMENT, parameters, SparkV15.APPROVAL_BURDEN, through - 1
+        );
+        requestId = _createRequest(
+            AVARequestAllocation.RequestInput(
+                status,
+                address(payments),
+                SparkV15.RESPONSE_APPROVE_PAYMENT,
+                parameters,
+                SparkV15.APPROVAL_BURDEN,
+                through - 1
+            )
+        );
+        requestVm.startPrank(PROVIDER);
+        requestAllocation.approve(requestId, ROLE_ALLOCATOR, _actorId(PROVIDER, ROLE_ALLOCATOR));
+        payments.recordApproval(requestId, terms);
+        requestVm.stopPrank();
+    }
+
+    function _verifyReceipt(uint256 receiptId, uint64 verifiedAt) private {
+        uint256 proof = _evidence(provisions.receiptEvidenceCommitment(receiptId, verifiedAt, VERIFIER_ACTOR));
+        requestVm.prank(VERIFIER_ACTOR);
+        provisions.verifyMaterialReceipt(receiptId, verifiedAt, proof, _authority(ROLE_VERIFIER));
+    }
