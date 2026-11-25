@@ -1,6 +1,6 @@
 {
   "name": "ava-spark-dao",
-  "version": "0.1.0-preview.2",
+  "version": "0.1.0-preview.3",
   "private": true,
   "description": "AVA Spark DAO local developer preview for Spark DAO rules v1.5.",
   "type": "module",

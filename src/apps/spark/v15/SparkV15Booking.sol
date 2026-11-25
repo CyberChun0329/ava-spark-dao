@@ -13,6 +13,7 @@ import {SparkV15CourseNotices} from "./SparkV15CourseNotices.sol";
 import {SparkV15ServiceReports} from "./SparkV15ServiceReports.sol";
 import {SparkV15TeachingEnd} from "./SparkV15TeachingEnd.sol";
 import {SparkV15BookingPrefunding} from "./SparkV15BookingPrefunding.sol";
+import {SparkV15FirstUsePackage} from "./SparkV15FirstUsePackage.sol";
 
 bytes32 constant COORDINATE_BOOKING_ACTION = keccak256("spark.action.coordinate-booking.v1.5");
 
@@ -1104,6 +1105,8 @@ contract SparkV15BookingOpening {
     uint256 private constant SIGNATURE_S_MASK = type(uint256).max >> 1;
     uint256 private constant MAX_CANONICAL_S = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
     bytes32 private immutable DEFAULT_CORE_POLICY_CODE_HASH;
+    address private immutable INSTALLER;
+    SparkV15FirstUsePackage private firstUsePackage;
     SparkV15Booking public immutable BOOKING;
     SparkV15BookingPrefunding public immutable PREFUNDING;
     SparkV15TeachingEnd public immutable TEACHING_END;
@@ -1151,8 +1154,16 @@ contract SparkV15BookingOpening {
         PREFUNDING = prefunding;
         REQUEST_ALLOCATION = booking.REQUEST_ALLOCATION();
         DEFAULT_CORE_POLICY_CODE_HASH = keccak256(type(DefaultAVACorePolicyBundle).runtimeCode);
+        INSTALLER = msg.sender;
         TEACHING_END = teachingEnd;
         SERVICE_REPORTS = new SparkV15ServiceReports(booking, this);
+    }
+
+    function bindFirstUsePackage(SparkV15FirstUsePackage packageReader) external {
+        if (msg.sender != INSTALLER || address(firstUsePackage) != address(0) || address(packageReader).code.length == 0) {
+            revert SparkV15Booking.UnauthorisedBookingActor();
+        }
+        firstUsePackage = packageReader;
     }
 
     /// @notice Adopt verified terms deliveries before adopting the agreements and charging the reserved place.
@@ -1605,20 +1616,26 @@ contract SparkV15BookingOpening {
         AVAEvidenceRegistry registry = REQUEST_ALLOCATION.EVIDENCE_REGISTRY();
         registry.DISCLOSURE_REGISTRY().requireActivePolicyReference(disclosurePolicyId, appId);
 
-        bytes32[] memory keys = new bytes32[](requiresDefaultLifecycle ? 4 : 3);
-        keys[0] = AVACapabilityKeys.APPLICATION;
-        keys[1] = AVACapabilityKeys.EVIDENCE_POLICY;
-        keys[2] = AVACapabilityKeys.DISCLOSURE_POLICY;
-        if (requiresDefaultLifecycle) keys[3] = AVACapabilityKeys.EVIDENCE_LIFECYCLE;
-        (, address[] memory modules) =
-            registry.RULE_PACKAGE_REGISTRY().getActiveVerifiedModulesCompact(appId, workflow, packageId, keys);
-        // Only the installed default policies can admit this one-use consent without a Core evidence ID.
-        SparkV15ApplicationModule application = SparkV15ApplicationModule(modules[0]);
-        if (
-            modules[1].codehash != DEFAULT_CORE_POLICY_CODE_HASH || modules[2].codehash != DEFAULT_CORE_POLICY_CODE_HASH
-                || (requiresDefaultLifecycle && modules[3].codehash != DEFAULT_CORE_POLICY_CODE_HASH)
-                || sourceRole != application.SOURCE_ROLE()
-        ) revert SparkV15Booking.InvalidEvidence();
+        SparkV15FirstUsePackage packageReader = firstUsePackage;
+        SparkV15ApplicationModule application;
+        if (address(packageReader) != address(0)) {
+            application = SparkV15ApplicationModule(packageReader.activeApplication(packageId));
+        }
+        if (address(application) == address(0)) {
+            bytes32[] memory keys = new bytes32[](requiresDefaultLifecycle ? 4 : 3);
+            keys[0] = AVACapabilityKeys.APPLICATION;
+            keys[1] = AVACapabilityKeys.EVIDENCE_POLICY;
+            keys[2] = AVACapabilityKeys.DISCLOSURE_POLICY;
+            if (requiresDefaultLifecycle) keys[3] = AVACapabilityKeys.EVIDENCE_LIFECYCLE;
+            (, address[] memory modules) =
+                registry.RULE_PACKAGE_REGISTRY().getActiveVerifiedModulesCompact(appId, workflow, packageId, keys);
+            if (
+                modules[1].codehash != DEFAULT_CORE_POLICY_CODE_HASH || modules[2].codehash != DEFAULT_CORE_POLICY_CODE_HASH
+                    || (requiresDefaultLifecycle && modules[3].codehash != DEFAULT_CORE_POLICY_CODE_HASH)
+            ) revert SparkV15Booking.InvalidEvidence();
+            application = SparkV15ApplicationModule(modules[0]);
+        }
+        if (sourceRole != application.SOURCE_ROLE()) revert SparkV15Booking.InvalidEvidence();
         application.validateEvidence(
             IAVAApplicationModule.EvidenceContext({
                 appId: appId,

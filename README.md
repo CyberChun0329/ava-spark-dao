@@ -30,7 +30,7 @@ If Foundry cannot find solc 0.8.26, set `FOUNDRY_SOLC` to the compiler's path. `
 
 | Component | Version |
 | --- | --- |
-| AVA Spark DAO | `0.1.0-preview.2` |
+| AVA Spark DAO | `0.1.0-preview.3` |
 | Spark DAO rules | `1.5` |
 | AVA contracts, SDK and local service | `0.1.0-preview.12` |
 | AVA Workbench browser toolkit | `0.1.0-preview.5` |

@@ -152,6 +152,18 @@ contract SparkV15Settlement {
         uint128 netTutorPay;
     }
 
+    struct StoredTranche {
+        address approver;
+        uint64 approvedAt;
+        Route route;
+        bool complete;
+        uint128 totalTutorPay;
+        uint128 netTutorPay;
+        bytes32 approvalAuthorityId;
+        uint256 evidenceId;
+        uint256 attendanceConfirmations;
+    }
+
     struct CompiledGroup {
         GroupPreview preview;
         SeatSettlement[] seats;
@@ -240,10 +252,10 @@ contract SparkV15Settlement {
 
     mapping(bytes32 => Proposal) public proposals;
     mapping(bytes32 => bytes32) private finalSettlementBasis;
-    mapping(bytes32 => GroupSettlement) private settlementTranches;
+    mapping(bytes32 => StoredTranche) private settlementTranches;
     mapping(bytes32 => mapping(bytes32 => SeatSettlement)) private seatSettlements;
     mapping(bytes32 => WageScope) private wageScopes;
-    mapping(bytes32 => mapping(address => bool)) public isSettlementActor;
+    mapping(bytes32 => mapping(address => bool)) private partialSettlementActors;
     mapping(bytes32 => AVACoreTypes.EvidenceStatus) public adoptedWageEvidenceStatus;
 
     constructor(SparkV15Booking booking, SparkV15Payments payments) {
@@ -608,21 +620,22 @@ contract SparkV15Settlement {
                 && compiled.absence == SparkV15SettlementAlternatives.AbsenceReason.Unverified
                 && remedyPolicy.recordTutorDeductions(lessonId, tutor, preview.totalTutorPay) != preview.netTutorPay
         ) revert InvalidAgreedPaymentTerms();
-        GroupSettlement memory settlement = GroupSettlement({
-            basis: preview.basis,
+        settlementTranches[preview.basis] = StoredTranche({
             approver: approver,
-            approvalAuthorityId: compiled.approvalAuthorityId,
             approvedAt: uint64(block.timestamp),
-            evidenceId: evidenceId,
-            totalTutorPay: preview.totalTutorPay,
-            attendanceConfirmations: preview.attendanceConfirmations,
             route: assessment.route,
             complete: !compiled.partialSettlement,
-            netTutorPay: preview.netTutorPay
+            totalTutorPay: preview.totalTutorPay,
+            netTutorPay: preview.netTutorPay,
+            approvalAuthorityId: compiled.approvalAuthorityId,
+            evidenceId: evidenceId,
+            attendanceConfirmations: preview.attendanceConfirmations
         });
-        settlementTranches[preview.basis] = settlement;
-        isSettlementActor[lessonId][approver] = true;
-        if (settlement.complete) finalSettlementBasis[lessonId] = preview.basis;
+        if (compiled.partialSettlement) {
+            partialSettlementActors[lessonId][approver] = true;
+        } else {
+            finalSettlementBasis[lessonId] = preview.basis;
+        }
         uint256 nextPayment;
         for (uint256 i; i < compiled.seats.length; ++i) {
             SeatSettlement memory seat = compiled.seats[i];
@@ -681,7 +694,13 @@ contract SparkV15Settlement {
     }
 
     function getGroupSettlement(bytes32 lessonId) external view returns (GroupSettlement memory) {
-        return settlementTranches[finalSettlementBasis[lessonId]];
+        return getSettlementTranche(finalSettlementBasis[lessonId]);
+    }
+
+    function isSettlementActor(bytes32 lessonId, address actor) external view returns (bool) {
+        return actor != address(0)
+            && (settlementTranches[finalSettlementBasis[lessonId]].approver == actor
+                || partialSettlementActors[lessonId][actor]);
     }
 
     function getSeatSettlement(bytes32 lessonId, bytes32 formId) external view returns (SeatSettlement memory) {
@@ -713,8 +732,21 @@ contract SparkV15Settlement {
         return wageScopes[seatSettlements[lessonId][formId].tutorObligationId].localCompletionAdopted;
     }
 
-    function getSettlementTranche(bytes32 basis) external view returns (GroupSettlement memory) {
-        return settlementTranches[basis];
+    function getSettlementTranche(bytes32 basis) public view returns (GroupSettlement memory) {
+        StoredTranche storage tranche = settlementTranches[basis];
+        address approver = tranche.approver;
+        return GroupSettlement({
+            basis: approver == address(0) ? bytes32(0) : basis,
+            approver: approver,
+            approvalAuthorityId: tranche.approvalAuthorityId,
+            approvedAt: tranche.approvedAt,
+            evidenceId: tranche.evidenceId,
+            totalTutorPay: tranche.totalTutorPay,
+            attendanceConfirmations: tranche.attendanceConfirmations,
+            route: tranche.route,
+            complete: tranche.complete,
+            netTutorPay: tranche.netTutorPay
+        });
     }
 
     /// @notice Read an established payment by its original exact terms and currently usable proof.

@@ -411,7 +411,13 @@ contract LessonSettlementTest is RequestAllocationFixture {
         _propose(input);
         bytes32 basis = _approveSettlement(input);
         SparkV15Settlement.GroupSettlement memory partialResult = settlement.getSettlementTranche(basis);
-        require(!partialResult.complete && partialResult.totalTutorPay == 14, "wrong independent subtotal");
+        require(
+            partialResult.basis == basis && partialResult.approver == VERIFIER_ACTOR
+                && !partialResult.complete && partialResult.totalTutorPay == 14,
+            "wrong independent tranche"
+        );
+        require(settlement.isSettlementActor(LESSON, VERIFIER_ACTOR), "partial approval actor missing");
+        require(!settlement.isSettlementActor(LESSON, address(0)), "unknown actor counted as approver");
         require(settlement.getGroupSettlement(LESSON).basis == bytes32(0), "partial is not final");
         require(settlement.getSeatSettlement(LESSON, originalA.formId).formId == bytes32(0), "held seat assessed");
         SparkV15Settlement.SeatSettlement memory b = settlement.getSeatSettlement(LESSON, input.seats[1].formId);
@@ -427,12 +433,27 @@ contract LessonSettlementTest is RequestAllocationFixture {
         input.seats[1].disposition = SparkV15Settlement.SeatDisposition.PreviouslySettled;
         input.seats[2].disposition = SparkV15Settlement.SeatDisposition.PreviouslySettled;
         _propose(input);
+        address finalApprover = address(0xF001);
+        bytes32 finalAuthority = keccak256("final group settlement verifier");
+        identityRegistry.assignSubject(finalApprover, SparkV15.APP_ID, ROLE_VERIFIER, finalAuthority, "test:final");
+        require(!settlement.isSettlementActor(LESSON, finalApprover), "future approver counted too soon");
         SparkV15Settlement.GroupPreview memory finalPreview =
-            settlement.previewOrdinaryGroup(LESSON, input, VERIFIER_ACTOR);
+            settlement.previewOrdinaryGroup(LESSON, input, finalApprover);
         require(finalPreview.payments.length == 1 && finalPreview.totalTutorPay == 16, "prior obligations duplicated");
-        bytes32 finalBasis = _approveSettlement(input);
+        bytes32 finalBasis = _approveSettlementAs(input, finalApprover);
         SparkV15Settlement.GroupSettlement memory finalResult = settlement.getGroupSettlement(LESSON);
-        require(finalResult.complete, "released retained place not completed");
+        require(
+            finalResult.complete && finalResult.approver == finalApprover
+                && finalResult.approvalAuthorityId == finalAuthority && finalResult.basis == finalBasis,
+            "final tranche does not preserve the actual approval"
+        );
+        require(settlement.isSettlementActor(LESSON, VERIFIER_ACTOR), "historical approver lost");
+        require(settlement.isSettlementActor(LESSON, finalApprover), "final approver missing");
+        require(!settlement.isSettlementActor(LESSON, address(0)), "unrecognised actor acquired approval");
+        require(
+            settlement.getSettlementTranche(keccak256("unknown tranche")).basis == bytes32(0),
+            "unknown tranche acquired a basis"
+        );
         require(
             keccak256(abi.encode(finalResult)) == keccak256(abi.encode(settlement.getSettlementTranche(finalBasis))),
             "final result differs from tranche"
@@ -1803,15 +1824,22 @@ contract LessonSettlementTest is RequestAllocationFixture {
         settlement.proposeOrdinaryGroup(LESSON, commitment);
     }
 
-    function _approveSettlement(SparkV15Settlement.GroupAssessment memory input) private returns (bytes32 basis) {
-        SparkV15Settlement.GroupPreview memory preview = settlement.previewOrdinaryGroup(LESSON, input, VERIFIER_ACTOR);
+    function _approveSettlement(SparkV15Settlement.GroupAssessment memory input) private returns (bytes32) {
+        return _approveSettlementAs(input, VERIFIER_ACTOR);
+    }
+
+    function _approveSettlementAs(SparkV15Settlement.GroupAssessment memory input, address approver)
+        private
+        returns (bytes32 basis)
+    {
+        SparkV15Settlement.GroupPreview memory preview = settlement.previewOrdinaryGroup(LESSON, input, approver);
         basis = preview.basis;
         uint256 approvalEvidence = _evidence(basis);
         uint256[] memory paymentEvidence = new uint256[](preview.payments.length);
         for (uint256 i; i < paymentEvidence.length; ++i) {
             paymentEvidence[i] = _evidence(payments.paymentEvidenceCommitment(preview.payments[i], basis));
         }
-        requestVm.prank(VERIFIER_ACTOR);
+        requestVm.prank(approver);
         settlement.approveOrdinaryGroup(LESSON, input, approvalEvidence, paymentEvidence);
     }
 

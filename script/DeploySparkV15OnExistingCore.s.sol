@@ -27,6 +27,7 @@ import {
     ISparkV15BookingChanges
 } from "../src/apps/spark/v15/SparkV15Booking.sol";
 import {SparkV15BookingPrefunding} from "../src/apps/spark/v15/SparkV15BookingPrefunding.sol";
+import {SparkV15FirstUsePackage} from "../src/apps/spark/v15/SparkV15FirstUsePackage.sol";
 import {SparkV15CourseNotices} from "../src/apps/spark/v15/SparkV15CourseNotices.sol";
 import {SparkV15TeachingEnd} from "../src/apps/spark/v15/SparkV15TeachingEnd.sol";
 import {
@@ -204,6 +205,18 @@ contract DeploySparkV15OnExistingCore {
                 d.payments.FUNDS().bindOrdinaryBookingCoverage(address(coverage));
                 emit ContractDeployed("ordinaryBookingCoverage", address(coverage));
             }
+        }
+        if (address(d.booking) != address(0)) {
+            SparkV15FirstUsePackage packageReader = new SparkV15FirstUsePackage(
+                d.kernel.RULE_PACKAGE_REGISTRY(),
+                d.packageId,
+                address(d.applicationModule),
+                address(d.corePolicy),
+                address(d.extensionPolicy),
+                address(d.requestPolicy)
+            );
+            d.booking.OPENING().bindFirstUsePackage(packageReader);
+            emit ContractDeployed("firstUsePackage", address(packageReader));
         }
         vm.stopBroadcast();
         d.kernel.requireStablePackageBindings(d.packageId);
