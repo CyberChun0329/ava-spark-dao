@@ -1,0 +1,234 @@
+--- a/SourceV14/Review.lean
++++ b/SourceV14/Review.lean
+@@ -1502,55 +1501,63 @@
+     ¬∃ earlier ∈ history.lifts,
+       history.validLift a facts hold earlier ∧ earlier.covers part ∧ earlier.effectiveAt.before lift.effectiveAt
+ 
++/-- The same payment part is continuously held up to its first unheld moment. -/
++def HoldHistory.firstUnheldFrom (history : HoldHistory) (a : ReviewAuthorities) (facts : HoldFacts)
++    (part : PaymentPartRef) (start releasedAt : Moment) : Prop :=
++  start.by releasedAt ∧ ¬history.paymentOnHold a facts part releasedAt ∧
++    ∀ time, start.by time → time.before releasedAt → history.paymentOnHold a facts part time
++
++/-- The complete release follows a recorded formal lift. Another hold may end later. -/
++def HoldHistory.paymentReleasedAt (history : HoldHistory) (a : ReviewAuthorities) (facts : HoldFacts)
++    (part : PaymentPartRef) (releasedAt : Moment) : Prop :=
++  ∃ hold lift, history.releasesPart a facts hold lift part ∧
++    history.firstUnheldFrom a facts part lift.effectiveAt releasedAt
++
+ /-- The prompt payment duty concerns an established due and unpaid amount. -/
+ def postLiftPromptPaymentDue (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+-    (part : PaymentPart) (schedule : PaymentSchedule) (hold : FormalHold) (lift : FormalLift) :
+-    Prop :=
+-  facts.isCanonicalPart part ∧ history.releasesPart a facts hold lift part.ref ∧
+-    schedule.dueAt.before lift.effectiveAt ∧
+-    ¬history.paymentOnHold a facts part.ref lift.effectiveAt ∧
+-    0 < history.payments.remainingBefore part lift.effectiveAt
++    (part : PaymentPart) (schedule : PaymentSchedule) (releasedAt : Moment) : Prop :=
++  facts.isCanonicalPart part ∧ history.paymentReleasedAt a facts part.ref releasedAt ∧
++    schedule.dueAt.before releasedAt ∧ 0 < history.payments.remainingBefore part releasedAt
+ 
+ /-- Failure to complete prompt payment is observable even if ordinary execution remained open. -/
+ def postLiftPromptPaymentComplies (a : ReviewAuthorities) (facts : HoldFacts)
+     (history : HoldHistory) (part : PaymentPart) (schedule : PaymentSchedule)
+-    (hold : FormalHold) (lift : FormalLift) (observedAt : Moment) : Prop :=
++    (releasedAt observedAt : Moment) : Prop :=
+   let cutoff := schedule.postLiftDeadline.cutoff
+-  postLiftPromptPaymentDue a facts history part schedule hold lift →
+-    history.resolvesDeadline schedule.postLiftDeadline lift.effectiveAt ∧
++  postLiftPromptPaymentDue a facts history part schedule releasedAt →
++    history.resolvesDeadline schedule.postLiftDeadline releasedAt ∧
+     (cutoff.mayHavePassed observedAt → history.payments.fullyRetainedBy part cutoff)
+ 
+-/-- Whether an actual lift opened the form's exception for this portion. -/
++/-- The execution window opens at the first release from a hold continuous from the deadline. -/
+ def postLiftWindowOpened (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+-    (part : PaymentPart) (schedule : PaymentSchedule) (hold : FormalHold) (lift : FormalLift) :
+-    Prop :=
+-  facts.isCanonicalPart part ∧ history.releasesPart a facts hold lift part.ref ∧
+-    history.formalInForce a facts hold part.ref schedule.originalExecutionDeadline ∧
+-    0 < history.payments.remainingBefore part schedule.originalExecutionDeadline ∧
+-    schedule.originalExecutionDeadline.before lift.effectiveAt ∧
+-    history.resolvesDeadline schedule.postLiftDeadline lift.effectiveAt
++    (part : PaymentPart) (schedule : PaymentSchedule) (releasedAt : Moment) : Prop :=
++  let original := schedule.originalExecutionDeadline
++  facts.isCanonicalPart part ∧ history.paymentReleasedAt a facts part.ref releasedAt ∧
++    (∃ hold, history.formalInForce a facts hold part.ref original) ∧
++    0 < history.payments.remainingBefore part original ∧ original.before releasedAt ∧
++    history.firstUnheldFrom a facts part.ref original releasedAt ∧
++    history.resolvesDeadline schedule.postLiftDeadline releasedAt
+ 
+ /-- Permission to use the form's window requires an effective hold at the original deadline. -/
+ def postLiftWindowApplies (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+-    (part : PaymentPart) (schedule : PaymentSchedule) (hold : FormalHold) (lift : FormalLift)
+-    (atTime : Moment) : Prop :=
+-  postLiftWindowOpened a facts history part schedule hold lift ∧
+-    lift.effectiveAt.by atTime ∧ schedule.postLiftDeadline.cutoff.metBy atTime ∧
++    (part : PaymentPart) (schedule : PaymentSchedule) (releasedAt atTime : Moment) : Prop :=
++  postLiftWindowOpened a facts history part schedule releasedAt ∧
++    releasedAt.by atTime ∧ schedule.postLiftDeadline.cutoff.metBy atTime ∧
+     0 < history.payments.remainingBefore part atTime
+ 
+ /-- Check the selected payment again at actual execution, including every other effective hold. -/
+ def postLiftPaymentConditions (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+-    (part : PaymentPart) (schedule : PaymentSchedule) (hold : FormalHold) (lift : FormalLift)
++    (part : PaymentPart) (schedule : PaymentSchedule) (releasedAt : Moment)
+     (instruction : PaymentInstruction) : Prop :=
+-  postLiftWindowApplies a facts history part schedule hold lift instruction.atTime ∧
++  postLiftWindowApplies a facts history part schedule releasedAt instruction.atTime ∧
+     history.payments.validOutstandingPayment part instruction ∧
+     ¬history.paymentOnHold a facts part.ref instruction.atTime
+ 
+ def originalApprovalAfterLift (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+     (original : PaymentApproval) (part : PaymentPart) (schedule : PaymentSchedule)
+-    (hold : FormalHold) (lift : FormalLift)
++    (releasedAt : Moment)
+     (originalPaymentConditions : PaymentInstruction → Prop) (p : PaymentInstruction) : Prop :=
+-  postLiftPaymentConditions a facts history part schedule hold lift p ∧
++  postLiftPaymentConditions a facts history part schedule releasedAt p ∧
+     history.approvalRecorded original ∧ original.authorisedAtGrant a ∧ original.originallyCovered part ∧
+     original.grantedAt.by schedule.originalExecutionDeadline ∧
+     original.validAt p.atTime ∧ original.covers history.payments part p ∧
+@@ -1563,9 +1570,9 @@
+ /-- A new approval for a payment still owed comes from the authority current at its grant. -/
+ def newApprovalAfterLift (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+     (original replacement : PaymentApproval) (part : PaymentPart) (schedule : PaymentSchedule)
+-    (hold : FormalHold) (lift : FormalLift)
++    (releasedAt : Moment)
+     (currentPaymentConditions : PaymentInstruction → Prop) (p : PaymentInstruction) : Prop :=
+-  postLiftPaymentConditions a facts history part schedule hold lift p ∧
++  postLiftPaymentConditions a facts history part schedule releasedAt p ∧
+     history.approvalRecorded original ∧ history.approvalRecorded replacement ∧
+     original.authorisedAtGrant a ∧ original.originallyCovered part ∧
+     original.grantedAt.by schedule.originalExecutionDeadline ∧
+@@ -1583,9 +1590,9 @@
+ /-- A hold can stop an unpaid portion before the first approval is granted. -/
+ def firstApprovalAfterLift (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+     (first : PaymentApproval) (part : PaymentPart) (schedule : PaymentSchedule)
+-    (hold : FormalHold) (lift : FormalLift)
++    (releasedAt : Moment)
+     (originalPaymentConditions : PaymentInstruction → Prop) (p : PaymentInstruction) : Prop :=
+-  postLiftPaymentConditions a facts history part schedule hold lift p ∧
++  postLiftPaymentConditions a facts history part schedule releasedAt p ∧
+     history.approvalRecorded first ∧ history.noEarlierApprovalFor a part first ∧
+     schedule.originalExecutionDeadline.before first.grantedAt ∧
+     first.authorisedAtGrant a ∧ first.validAt p.atTime ∧
+@@ -1594,11 +1601,10 @@
+ /-- Record the current authority's approval arrangement within the form's completion period. -/
+ def approvalArrangementConforms (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+     (old replacement : PaymentApproval) (part : PaymentPart) (schedule : PaymentSchedule)
+-    (hold : FormalHold) (lift : FormalLift) (record : NewApprovalArrangement)
+-    (p : PaymentInstruction) : Prop :=
+-  record ∈ history.approvalArrangements ∧ history.releasesPart a facts hold lift part.ref ∧
+-    p.part = part.ref ∧ record.part = part.ref ∧ record.hold = hold.id ∧
+-    record.liftEffectiveAt = lift.effectiveAt ∧ record.original = old.id ∧
++    (releasedAt : Moment) (record : NewApprovalArrangement) (p : PaymentInstruction) : Prop :=
++  record ∈ history.approvalArrangements ∧ history.paymentReleasedAt a facts part.ref releasedAt ∧
++    p.part = part.ref ∧ record.part = part.ref ∧
++    record.releasedAt = releasedAt ∧ record.original = old.id ∧
+     record.replacement = replacement.id ∧ replacement.id ≠ old.id ∧
+     history.approvalRecorded old ∧ old.authorisedAtGrant a ∧ old.originallyCovered part ∧
+     history.approvalRecorded replacement ∧ replacement.authorisedAtGrant a ∧
+@@ -1607,11 +1613,10 @@
+     newApprovalRequiredAfterLift history.payments old part p ∧
+     a.approvesPayment part.ref record.arrangedBy record.arrangedAt ∧
+     record.arrangedAt.by replacement.grantedAt ∧ replacement.grantedAt.by p.atTime ∧
+-    history.metDeadline schedule.postLiftDeadline lift.effectiveAt record.arrangedAt
++    history.metDeadline schedule.postLiftDeadline releasedAt record.arrangedAt
+ 
+ structure PostLiftPaymentRecord where
+-  hold : FormalHold
+-  lift : FormalLift
++  releasedAt : Moment
+   schedule : PaymentSchedule
+   originalApproval : Option PaymentApproval
+   replacementApproval : Option PaymentApproval
+@@ -1630,7 +1635,7 @@
+     (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory) (part : PaymentPart) : Prop :=
+   ∀ old ∈ row.originalApproval, ∀ replacement ∈ row.replacementApproval,
+     ∃ arrangement, approvalArrangementConforms a facts history old replacement part row.schedule
+-      row.hold row.lift arrangement row.paid.instruction
++      row.releasedAt arrangement row.paid.instruction
+ 
+ /-- Part 2 of the form records the actual approved amount and payment, with the hold and lift. -/
+ def postLiftPaymentRecordConforms (a : ReviewAuthorities) (facts : HoldFacts)
+@@ -1641,17 +1646,15 @@
+     history.payments.actualPaymentWithEvidence record.paid ∧
+     history.payments.recipientReceived part.recipient record.paid ∧
+     history.payments.validOutstandingPayment part p ∧
+-    history.releasesPart a facts record.hold record.lift part.ref ∧
+-    record.lift.effectiveAt.by p.atTime ∧
+-    history.resolvesDeadline schedule.postLiftDeadline record.lift.effectiveAt ∧
+-    (p.atTime.by schedule.originalExecutionDeadline ∨
+-      postLiftWindowApplies a facts history part schedule record.hold record.lift p.atTime) ∧
++    history.paymentReleasedAt a facts part.ref record.releasedAt ∧
++    record.releasedAt.by p.atTime ∧
++    history.resolvesDeadline schedule.postLiftDeadline record.releasedAt ∧
+     ¬history.paymentOnHold a facts part.ref p.atTime ∧
+     (match record.originalApproval with
+     | none => ∃ first ∈ record.replacementApproval, history.noEarlierApprovalFor a part first
+     | some original => history.approvalRecorded original ∧ original.authorisedAtGrant a ∧
+         original.originallyCovered part ∧ original.grantedAt.by schedule.originalExecutionDeadline ∧
+-        original.grantedAt.before record.lift.effectiveAt ∧
++        original.grantedAt.before record.releasedAt ∧
+         ∀ replacement ∈ record.replacementApproval, replacement.id ≠ original.id ∧
+           original.grantedAt.before replacement.grantedAt ∧
+           newApprovalRequiredAfterLift history.payments original part p) ∧
+@@ -1663,7 +1666,7 @@
+           min (history.payments.remainingBefore part p.atTime)
+             (entry.remainingBefore history.payments part p.atTime)) ∧
+     (∀ id, id ∈ record.otherHoldsAtPayment ↔
+-      ∃ hold, hold.id = id ∧ hold.id ≠ record.hold.id ∧
++      ∃ hold, hold.id = id ∧
+         ∃ ref, ref.lesson = part.ref.lesson ∧ ref.obligation = part.ref.obligation ∧ ref.purpose = part.ref.purpose ∧
+           history.formalInForce a facts hold ref p.atTime) ∧
+     (∀ ref, ref ∈ record.otherTemporaryAmountsAtPayment ↔
+@@ -1673,35 +1676,35 @@
+ /-- A payment can still be recorded after an earlier legal or prompt-payment cutoff. -/
+ def paymentMeetsApplicableDeadlines (a : ReviewAuthorities) (facts : HoldFacts)
+     (history : HoldHistory) (part : PaymentPart) (schedule : PaymentSchedule)
+-    (release : Option (FormalHold × FormalLift)) (payment : PostedPayment) : Prop :=
++    (release : Option Moment) (payment : PostedPayment) : Prop :=
+   let atTime := payment.instruction.atTime
+   payment.instruction.part = part.ref ∧ history.payments.actualPaymentWithEvidence payment ∧
+     schedule.meetsLegalDeadline atTime ∧
+     match release with
+     | none => atTime.by schedule.originalExecutionDeadline
+-    | some (hold, lift) =>
+-      history.releasesPart a facts hold lift part.ref ∧ lift.effectiveAt.by atTime ∧
++    | some releasedAt =>
++      history.paymentReleasedAt a facts part.ref releasedAt ∧ releasedAt.by atTime ∧
+         (atTime.by schedule.originalExecutionDeadline ∨
+-          postLiftWindowApplies a facts history part schedule hold lift atTime) ∧
+-        (postLiftPromptPaymentDue a facts history part schedule hold lift →
+-          history.metDeadline schedule.postLiftDeadline lift.effectiveAt atTime)
++          postLiftWindowApplies a facts history part schedule releasedAt atTime) ∧
++        (postLiftPromptPaymentDue a facts history part schedule releasedAt →
++          history.metDeadline schedule.postLiftDeadline releasedAt atTime)
+ 
+ /-- Timely completion measures the whole retained amount at each applicable cutoff. -/
+ def paymentCompletedByApplicableDeadlines (a : ReviewAuthorities) (facts : HoldFacts)
+     (history : HoldHistory) (part : PaymentPart) (schedule : PaymentSchedule)
+-    (release : Option (FormalHold × FormalLift)) : Prop :=
++    (release : Option Moment) : Prop :=
+   let complete := history.payments.fullyRetainedBy part
+   facts.isCanonicalPart part ∧ (∀ statutory ∈ schedule.legalDeadline, complete statutory) ∧
+     match release with
+     | none => complete schedule.originalExecutionDeadline
+-    | some (hold, lift) =>
+-      history.releasesPart a facts hold lift part.ref ∧
++    | some releasedAt =>
++      history.paymentReleasedAt a facts part.ref releasedAt ∧
+         (complete schedule.originalExecutionDeadline ∨
+-          (postLiftWindowOpened a facts history part schedule hold lift ∧
+-            schedule.postLiftDeadline.cutoff.metBy lift.effectiveAt ∧
++          (postLiftWindowOpened a facts history part schedule releasedAt ∧
++            schedule.postLiftDeadline.cutoff.metBy releasedAt ∧
+             complete schedule.postLiftDeadline.cutoff)) ∧
+-        (postLiftPromptPaymentDue a facts history part schedule hold lift →
+-          history.resolvesDeadline schedule.postLiftDeadline lift.effectiveAt ∧
++        (postLiftPromptPaymentDue a facts history part schedule releasedAt →
++          history.resolvesDeadline schedule.postLiftDeadline releasedAt ∧
+           complete schedule.postLiftDeadline.cutoff)
+ 
+ inductive EscalationMatter where

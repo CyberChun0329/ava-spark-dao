@@ -1,0 +1,240 @@
+{
+  "kind": "Saved SDK/Anvil run with independently signed test transactions",
+  "chainId": 31337,
+  "materialModuleSha256": "b090c88645a6092b7f79be43e732f8b120352b58eb9e2774794b630d497ac935",
+  "originalChecksSha256": "dfe03944b33b1fb8515b0f8dea443bb0cc2b9c800681bb57934fe201387f564e",
+  "originalCoreReadbackSha256": "03ed689834aad03603ddf2d0c554100def6c9a94740759132ae0de559e63c15a",
+  "funding": {
+    "provider": 194,
+    "customerTopUps": [
+      4,
+      4
+    ],
+    "cashBeforePayments": 202
+  },
+  "charge": {
+    "lesson": "M42",
+    "verifiedUseEvidence": 28,
+    "chargeEvidence": 29,
+    "shareEvidence": [
+      30,
+      31
+    ],
+    "material": 7,
+    "ordinaryFee": 120,
+    "discountedDebit": 4,
+    "ratePercent": 5,
+    "grossCharge": 6,
+    "separateMaterial": 8,
+    "separateProvision": 6
+  },
+  "nextApproval": {
+    "objectId": 2,
+    "recognisedStateId": 2,
+    "requestId": 2,
+    "vestedSupportEvidenceId": 33,
+    "obligationId": "0x32401a50e2e5ad7348dd574f5672697d09615a99c1f46b7143de92d5f681b7f4",
+    "ceiling": 4,
+    "validThrough": 1795438647,
+    "coreRequestValidUntil": 1795438647,
+    "grantedAt": 1795437760,
+    "paid": 0,
+    "beneficiaryVersion": 0,
+    "assigned": {
+      "cancelled": false,
+      "completed": false,
+      "consumed": false
+    },
+    "finished": {
+      "cancelled": false,
+      "completed": true,
+      "consumed": true
+    },
+    "events": [
+      {
+        "eventName": "RequestCreated",
+        "blockNumber": "223",
+        "logIndex": 1,
+        "transactionHash": "0xef863d94410002bb199dd2b499d777478ee02bec61b22bdfd15bdde4620efedf"
+      },
+      {
+        "eventName": "RequestApproved",
+        "blockNumber": "224",
+        "logIndex": 0,
+        "transactionHash": "0x92213635564c605cd3e3ff523670533a46da8b0c8258233f742588943b93dd91"
+      },
+      {
+        "eventName": "RequestConsumed",
+        "blockNumber": "225",
+        "logIndex": 0,
+        "transactionHash": "0x815f42d9b3ba6b57d90b008451c78d066706cf480b3eab67f8def6b140a25edd"
+      },
+      {
+        "eventName": "RequestCompleted",
+        "blockNumber": "225",
+        "logIndex": 1,
+        "transactionHash": "0x815f42d9b3ba6b57d90b008451c78d066706cf480b3eab67f8def6b140a25edd"
+      },
+      {
+        "eventName": "PaymentApprovalRecorded",
+        "blockNumber": "225",
+        "logIndex": 2,
+        "transactionHash": "0x815f42d9b3ba6b57d90b008451c78d066706cf480b3eab67f8def6b140a25edd"
+      }
+    ]
+  },
+  "checkBeforeSecondPayment": {
+    "blockNumber": 232,
+    "timestamp": 1795437779,
+    "samePool": true,
+    "cash": 200,
+    "mProtection": 182,
+    "mOtherCosts": 124,
+    "otherMaterialProtection": 6,
+    "tProtection": 14,
+    "proposedPaymentAllocation": 4,
+    "unpaid": 4,
+    "dueAt": 1795437847,
+    "executionDeadline": 1795438747,
+    "beneficiaryVersion": 0,
+    "activeHold": false,
+    "eligibleFrom": 1795437748
+  },
+  "materials": [
+    {
+      "obligationId": "0x1f71df6b568325860755ed9ff7252c9a1d12d663750c96aadecdb5581c3953f5",
+      "requestId": 1,
+      "receiptId": 1,
+      "recipient": "first material payee",
+      "executed": {
+        "eventName": "PaymentReceived",
+        "blockNumber": "228",
+        "logIndex": 1,
+        "transactionHash": "0x9c7fdad7025770306c6eb4657f95863c70012f6289ce9aca22d9157161ad0c0c",
+        "timestamp": 1795437774,
+        "amount": 2,
+        "tokenTransferAmount": 2
+      },
+      "verified": {
+        "eventName": "MaterialReceiptVerified",
+        "blockNumber": "231",
+        "logIndex": 0,
+        "transactionHash": "0x18b84e4596784bd4323dbe32ec7ae4affa0d4cb78ee4f49d5d56d67254213500",
+        "timestamp": 1795437778,
+        "evidenceId": 34,
+        "verifierIndependentOfExecutor": true
+      },
+      "filed": {
+        "eventName": "MaterialReceiptFiled",
+        "blockNumber": "246",
+        "logIndex": 0,
+        "transactionHash": "0xb9761a08da10f5b9054a98bc87fe6419d306d4a1bf4081089745105d505773d4",
+        "timestamp": 1795523636
+      }
+    },
+    {
+      "obligationId": "0x32401a50e2e5ad7348dd574f5672697d09615a99c1f46b7143de92d5f681b7f4",
+      "requestId": 2,
+      "receiptId": 2,
+      "recipient": "second material payee",
+      "executed": {
+        "eventName": "PaymentReceived",
+        "blockNumber": "233",
+        "logIndex": 1,
+        "transactionHash": "0x077980468086e872fe51078de5104f75d6be503b806c4396d144365e10ce41f6",
+        "timestamp": 1795437779,
+        "amount": 4,
+        "tokenTransferAmount": 4
+      },
+      "verified": {
+        "eventName": "MaterialReceiptVerified",
+        "blockNumber": "236",
+        "logIndex": 0,
+        "transactionHash": "0x2a05ace069bf7a99bcb3cb99df3275097704a2b991356af78ff46fa65617c07a",
+        "timestamp": 1795437782,
+        "evidenceId": 35,
+        "verifierIndependentOfExecutor": true
+      },
+      "filed": {
+        "eventName": "MaterialReceiptFiled",
+        "blockNumber": "247",
+        "logIndex": 0,
+        "transactionHash": "0xec3e8948336adf1c97d661029d36f972b1e932d3dea72082206b1ab94c8d7d11",
+        "timestamp": 1795523636
+      }
+    }
+  ],
+  "cashReadbacks": [
+    {
+      "observation": "before first transfer",
+      "blockNumber": 226,
+      "timestamp": 1795437764,
+      "vault": 202,
+      "aggregateProtection": 202,
+      "mGross": 12
+    },
+    {
+      "observation": "first transfer",
+      "blockNumber": 228,
+      "timestamp": 1795437774,
+      "vault": 200,
+      "aggregateProtection": 200,
+      "mGross": 12
+    },
+    {
+      "observation": "second transfer",
+      "blockNumber": 233,
+      "timestamp": 1795437779,
+      "vault": 196,
+      "aggregateProtection": 196,
+      "mGross": 10
+    },
+    {
+      "observation": "second verification",
+      "blockNumber": 236,
+      "timestamp": 1795437782,
+      "vault": 196,
+      "aggregateProtection": 196,
+      "mGross": 6
+    },
+    {
+      "observation": "T100 refund",
+      "blockNumber": 245,
+      "timestamp": 1795523636,
+      "vault": 196,
+      "aggregateProtection": 196,
+      "mGross": 6
+    },
+    {
+      "observation": "both filings",
+      "blockNumber": 247,
+      "timestamp": 1795523636,
+      "vault": 196,
+      "aggregateProtection": 196,
+      "mGross": 6
+    }
+  ],
+  "refund": {
+    "eventName": "PaymentReceived",
+    "blockNumber": "245",
+    "logIndex": 0,
+    "transactionHash": "0x67b07e8c3deae8690fa0b496ba55e60a5ba98941c50152ba226ccace51f01499",
+    "amount": 2,
+    "requestId": 3,
+    "receiptId": 3,
+    "originalDebitAccountMatched": true,
+    "originalDebit": 4,
+    "before": {
+      "payerCredit": 0,
+      "compensationCredit": 4,
+      "refundBacking": 2,
+      "vault": 196
+    },
+    "after": {
+      "payerCredit": 2,
+      "compensationCredit": 4,
+      "refundBacking": 0,
+      "vault": 196
+    }
+  }
+}

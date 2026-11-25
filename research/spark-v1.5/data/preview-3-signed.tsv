@@ -1,0 +1,18 @@
+sequence	phase	step	contract	functionName	block	startGas	terminalGas	terminalCost	frame	intrinsic	refund	receiptGas	txHash
+1	first-recharge	offer customer recharge	SparkV15Funds	offerRecharge	120	190200	0	0	190200	22888	0	213088	0x87c24721a7b783660f4dc3adff61908883319a345337248b32ab836cdff0f4a1
+2	fixture-funding	mint customer test tokens	MockERC20	mint	121	46520	0	0	46520	21572	0	68092	0xaf57e98747315f19eebbc2dadf774d746746a2c6125c399aabd54044a7475fa1
+3	first-recharge	approve recharge allowance	MockERC20	approve	122	24305	0	0	24305	21572	0	45877	0x129d5fbb5809995f9464f7b29158cceebe9633ebf6f470b3ddfe8df28ea70b86
+4	first-recharge	receive customer recharge	SparkV15Funds	recharge	123	279886	2186	0	277700	21576	29500	269776	0x4dbe48aae37ad59a04bb20faedf7db846578a61029a49652e291d6761b485694
+5	fixture-funding	mint provider test tokens	MockERC20	mint	124	29420	0	0	29420	21584	0	51004	0xbf052a03e086f3559f94bfce67b40a97221d523e924b975b9c351faeedae0cd7
+6	fixture-funding	deposit provider backing	MockERC20	transfer	125	12697	0	0	12697	21584	4800	29481	0x60a68080f8a46d6de0989ca537d6de08662e366cf025872c1ebd3fe87d743f7d
+7	course	adopt signed booking and verify prefunding	SparkV15BookingPrefunding	adoptOrdinaryBookingDraftWithPrefundingProof	127	986827	2897	0	983930	36544	0	1020474	0xb0ebe6840d5560b9b9c32202cf4e2419374b2722e1d0c48961c9887d0254e7a5
+8	course	confirm booked place using wallet consents	SparkV15BookingOpening	confirmOrdinaryPlaceWithDeliveries	128	604495	4832	0	599663	34228	0	633891	0x8a887ec5efd1c331f1c967b7cc5d4332695a0ae65220426937b76d8737a82d8d
+9	course	record student notice	SparkV15CourseNotices	recordStudentNoticeWithConsent	130	352530	0	0	352530	24616	0	377146	0x7089922e219e67bae6ce7aab87cdca9affbff367c5a40747a5eb966627aeaca5
+10	course	record tutor notice	SparkV15CourseNotices	recordTutorNoticeWithConsent	131	346264	0	0	346264	25128	0	371392	0x573e21ff016693c8d48080401bf394a629d4e22fa135c322521cae594cf199f4
+11	course	record teaching started	SparkV15TeachingEnd	recordOrdinaryTeachingStarted	133	481687	0	0	481687	25684	0	507371	0x6c59d2fb4c0a2da723990a098af08835761e312639960ce02e6ae810714a6a06
+12	course	record teaching ended	SparkV15TeachingEnd	recordOrdinaryTeachingEnded	135	320266	0	0	320266	24628	0	344894	0x3abf8de5ea1492b35f21a2b0bb39e0812efdbe0905780f6e81d966ed1790d2ab
+13	course	tutor reports delivery	SparkV15ServiceReports	recordCompletedTutorDelivery	137	360743	0	0	360743	24440	0	385183	0x341a71c13b3002647b4f6cbeb475476080f1c517053e407591422e292268583e
+14	course	student reports complete service	SparkV15ServiceReports	recordFullServiceFeedback	139	323389	0	0	323389	24428	0	347817	0xb4a53bdeb68278b8f0e2b47bcfe7ee62d1c91aeea5474159886dbcaad929e9e4
+15	course	approve ordinary settlement using local records	SparkV15Settlement	approveOrdinaryOneToOneWithAdoptedWage	140	1840654	158	0	1840496	39008	0	1879504	0x2475d429e1507adfd0e1ffd06259ebc2a07d5a5d69571e06a104f88a7219f621
+16	course	allocator grants ordinary App wage approval	SparkV15Payments	grantOrdinaryWageApproval	141	461994	0	0	461994	22376	0	484370	0x2a239e0ef659f7b2fbaf7ca7f0abd505850cac78a701de32a326cec21a54391a
+17	course	executor pays tutor on due date	SparkV15Payments	pay	142	436295	175	0	436120	21716	24700	433136	0xb1109bf2847b9e2f7553f9fb76fe13a40f9613919007f3936983a25802beed9f

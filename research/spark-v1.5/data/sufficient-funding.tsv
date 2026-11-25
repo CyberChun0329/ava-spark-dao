@@ -1,0 +1,7 @@
+branch	source_line	stage	time	cash	base	material	additional	proposed_material	proposed_additional
+early	4507	0	1000045	153	141	10	6	6	6
+early	5634	1	1000045	149	137	10	10	10	10
+early	6669	2	1000047	149	137	6	6	6	6
+late	7642	0	1000045	153	141	12	8	8	6
+late	8519	1	1000045	149	137	12	12	12	12
+late	9642	2	1000047	149	137	6	6	6	6

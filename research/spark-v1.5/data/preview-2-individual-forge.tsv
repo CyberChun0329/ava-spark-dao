@@ -1,0 +1,53 @@
+trace_line	scope	business_step	call	gas
+18922	lesson	publish lesson and form	SparkV15Booking::publishLesson	345549
+18951	recharge	initial reusable recharge	SparkV15Funds::offerRecharge	174200
+18964	test-funding	synthetic funding setup	MockERC20::mint	46520
+18969	recharge	initial reusable recharge	MockERC20::approve	24305
+18974	recharge	initial reusable recharge	SparkV15Funds::recharge	240100
+19000	lesson	publish lesson and form	SparkV15Booking::publishForm	280009
+19031	lesson	deliver terms separately	AVAEvidenceRegistry::registerEvidence	372357
+19064	lesson	deliver terms separately	SparkV15Booking::recordTermsProvision	69723
+19115	lesson	deliver terms separately	AVAEvidenceRegistry::registerEvidence	307057
+19148	lesson	deliver terms separately	SparkV15Booking::recordTermsProvision	67376
+19187	test-funding	synthetic funding setup	MockERC20::mint	24620
+19192	test-funding	synthetic funding setup	MockERC20::transfer	3097
+19207	lesson	verify prefunding	AVAEvidenceRegistry::registerEvidence	307057
+19242	lesson	verify prefunding	SparkV15Booking::verifyPrefunding	219489
+19331	lesson	sign agreements and debit original account	SparkV15Booking::signTeachingAgreement	44650
+19346	lesson	sign agreements and debit original account	SparkV15Booking::signTeachingAgreement	40299
+19361	lesson	sign agreements and debit original account	SparkV15Booking::acceptForm	96326
+19416	lesson	sign agreements and debit original account	SparkV15Booking::acceptForm	114091
+19493	lesson	sign agreements and debit original account	SparkV15Booking::acceptForm	91231
+19548	lesson	sign agreements and debit original account	SparkV15Booking::acceptForm	90471
+19603	lesson	sign agreements and debit original account	SparkV15Booking::confirmPlace	168926
+19720	lesson	notify student and tutor	AVAEvidenceRegistry::registerEvidence	307057
+19753	lesson	notify student and tutor	SparkV15Booking::recordStudentNotice	157472
+19816	lesson	notify student and tutor	AVAEvidenceRegistry::registerEvidence	307057
+19849	lesson	notify student and tutor	SparkV15Booking::recordTutorNotice	146577
+19912	lesson	begin and end teaching	AVAEvidenceRegistry::registerEvidence	307057
+19945	lesson	begin and end teaching	SparkV15Booking::recordTeachingStarted	234609
+20050	lesson	begin and end teaching	AVAEvidenceRegistry::registerEvidence	307057
+20083	lesson	begin and end teaching	SparkV15Booking::recordTeachingEnded	75358
+20140	lesson	delivery report, attendance and feedback	AVAEvidenceRegistry::registerEvidence	307057
+20173	lesson	delivery report, attendance and feedback	SparkV15Booking::recordTutorDelivery	179406
+20228	lesson	delivery report, attendance and feedback	AVAEvidenceRegistry::registerEvidence	307057
+20261	lesson	delivery report, attendance and feedback	SparkV15Booking::recordAttendance	78715
+20300	lesson	delivery report, attendance and feedback	AVAEvidenceRegistry::registerEvidence	307057
+20333	lesson	delivery report, attendance and feedback	SparkV15Booking::recordServiceFeedback	127651
+20390	lesson	completion, settlement and wage obligation	AVAEvidenceRegistry::registerEvidence	307057
+20423	lesson	completion, settlement and wage obligation	SparkV15SettlementAlternatives::recordOneToOneCompletion	90277
+20462	lesson	completion, settlement and wage obligation	SparkV15Settlement::proposeOrdinaryGroup	128611
+20813	lesson	completion, settlement and wage obligation	AVAEvidenceRegistry::registerEvidence	307057
+20846	lesson	completion, settlement and wage obligation	SparkV15SettlementAlternatives::recordOneToOneCompletion	91347
+21235	lesson	completion, settlement and wage obligation	AVAEvidenceRegistry::registerEvidence	307057
+21278	lesson	completion, settlement and wage obligation	AVAEvidenceRegistry::registerEvidence	307057
+21311	lesson	completion, settlement and wage obligation	SparkV15Settlement::approveOrdinaryGroup	1535550
+21756	lesson	Core and App wage approval	AVAEvidenceRegistry::registerEvidence	307057
+21789	lesson	Core and App wage approval	AVAGovernanceKernel::registerGovernedObject	389339
+21846	lesson	Core and App wage approval	AVAGovernanceKernel::formRecognisedState	579287
+21915	lesson	Core and App wage approval	AVAGovernanceKernel::transitionRecognisedState	247763
+21983	lesson	Core and App wage approval	AVAGovernanceKernel::vestRecognisedState	245208
+22059	lesson	Core and App wage approval	AVARequestAllocation::createRequest	831653
+22129	lesson	Core and App wage approval	AVARequestAllocation::approve	161457
+22198	lesson	Core and App wage approval	SparkV15Payments::recordApproval	333599
+22310	lesson	pay tutor	SparkV15Payments::pay	314620

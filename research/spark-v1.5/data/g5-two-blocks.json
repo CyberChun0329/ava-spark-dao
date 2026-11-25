@@ -1,0 +1,34 @@
+{
+  "kind": "Historical Anvil reads and proposed-payment simulations",
+  "originalReadbacksSha256": "e0c5a087c5439f14c7f32747a1dd0ddd038383c603b5e5ec0a0eeb526172c21e",
+  "cuts": [
+    {
+      "blockNumber": 228,
+      "timestamp": 1795412445,
+      "vault": 200,
+      "mGross": 12,
+      "proposedM": 8,
+      "blockHash": "0xe7939ff4592c04b80ea4ccbedc4e2cece3fc495a3fee23ab45983b45fa9e02d9",
+      "phase": "beforeVerification",
+      "observedFirstReceiptVerified": false
+    },
+    {
+      "blockNumber": 230,
+      "timestamp": 1795412445,
+      "vault": 200,
+      "mGross": 10,
+      "proposedM": 6,
+      "blockHash": "0x9015f3692870e0c826b89b0714c2a928e0e0f54973dbfbd808f82757ee931650",
+      "phase": "afterVerification",
+      "observedFirstReceiptVerified": true
+    }
+  ],
+  "priorCutRereadAfterVerification": 12,
+  "nextPaymentOfFour": {
+    "simulations": {
+      "beforeVerification": "allowed by payment simulation",
+      "afterVerification": "allowed by payment simulation"
+    },
+    "executed": false
+  }
+}

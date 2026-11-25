@@ -1,0 +1,46 @@
+{
+  "kind": "Separate historical single-lesson accounting readbacks",
+  "originalReceiptsSha256": "80565d75d1702397b0af098cb76237a0fd25d2c85f031967e08804dfe21b9f1b",
+  "cuts": [
+    {
+      "step": "fault recorded",
+      "block": 159,
+      "held": 10,
+      "earned": 4,
+      "refundBacking": 0,
+      "compensationCredit": 0,
+      "reserved": 10,
+      "vault": 14
+    },
+    {
+      "step": "refund established",
+      "block": 163,
+      "held": 8,
+      "earned": 2,
+      "refundBacking": 2,
+      "compensationCredit": 0,
+      "reserved": 10,
+      "vault": 14
+    },
+    {
+      "step": "credit issued",
+      "block": 165,
+      "held": 8,
+      "earned": 2,
+      "refundBacking": 2,
+      "compensationCredit": 4,
+      "reserved": 14,
+      "vault": 14
+    },
+    {
+      "step": "partial release",
+      "block": 168,
+      "held": 2,
+      "earned": 2,
+      "refundBacking": 2,
+      "compensationCredit": 4,
+      "reserved": 8,
+      "vault": 14
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+branch	operation	source_line	frame_gas
+early	verify receipt 1	3196	196857
+early	pay request 2	4510	592445
+early	verify receipt 2	5678	194857
+late	verify receipt 1	8561	196857
+late	pay request 2	7645	531902
+late	verify receipt 2	8651	194857

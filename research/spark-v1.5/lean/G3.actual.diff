@@ -1,0 +1,40 @@
+--- a/SourceV14/Workflow/Materials.lean
++++ b/SourceV14/Workflow/Materials.lean
+@@ -283,11 +283,22 @@
+     (estimate : PendingMaterialsShare) (checkedAt : Moment)
+     (principal : MaterialsPrincipalContext := {}) : Bool :=
+   let key := budgetKey estimate
+-  let recordedPayments := { payments with posted := payments.posted.filter (fun paid ↦
++  let verifiedPayments := payments.posted.filter (fun paid ↦
+     paid.evidence.isSome && decide (estimate.checkedAt.before paid.instruction.atTime) &&
+-      history.hasVerifiedReceiptAt paid checkedAt) }
++      history.hasVerifiedReceiptAt paid checkedAt)
+   history.originals.any (fun row ↦
+     let original := row.record
++    let governingTransfers := history.transfers.filter (fun transfer ↦
++      transfer.material == key.material && decide (transfer.recordedAt.by checkedAt) &&
++      decide (transfer.record.transfer.effectiveAt.by checkedAt) &&
++      original.charges.any (fun charge ↦ @decide
++        (transfer.record.governs original.lesson original.reference charge.place)
++        (Classical.propDecidable _)))
++    -- A governing transfer changes uncollected shares; a verified receipt from before
++    -- its effective time still counts. Reconcile any later receipts separately.
++    let recordedPayments := { payments with posted := verifiedPayments.filter (fun paid ↦
++      governingTransfers.all (fun transfer ↦
++        decide (paid.instruction.atTime.before transfer.record.transfer.effectiveAt))) }
+     let shares := history.entitlements.filter (fun entitlement ↦
+       let basis := entitlement.original.record
+       entitlement.shortfall.isNone && decide (entitlement.verifiedAt.by checkedAt) &&
+@@ -298,12 +309,6 @@
+       -- The original payee totals alone cannot reconcile a revised portion.
+       !(principal.reviewsFor original.chargeScope checkedAt |>.any (fun review ↦
+         review.originalPart != review.money.corrected)) &&
+-      !(history.transfers.any (fun transfer ↦ transfer.material == key.material &&
+-        decide (transfer.recordedAt.by checkedAt) &&
+-        decide (transfer.record.transfer.effectiveAt.by checkedAt) &&
+-        original.charges.any (fun charge ↦ @decide
+-          (transfer.record.governs original.lesson original.reference charge.place)
+-          (Classical.propDecidable _)))) &&
+       !(history.shortfalls.any (fun shortfall ↦
+         shortfall.record.lesson == original.lesson &&
+           shortfall.record.material == original.material &&

@@ -1,0 +1,68 @@
+{
+  "preview3": {
+    "commit": "c9501ad5a32c9c223f49378463f534f74e81de33",
+    "recordSha256": "e128c2fc3aee4181fecc02d2af4fb31b3407fa8fcc3411a9c4009ba09c6220a6",
+    "proofOfFulfilment": {
+      "initial": {
+        "pool": 0,
+        "reserved": 0,
+        "tutor": 0,
+        "credit": 0
+      },
+      "prefundingReserved": 58,
+      "creditAfterBooking": 20,
+      "approved": {
+        "pool": 400,
+        "paymentReserved": 8,
+        "tutor": 0,
+        "approvalPaid": 0,
+        "obligationPaid": 0
+      },
+      "paid": {
+        "pool": 392,
+        "tutor": 8,
+        "paymentReserved": 0
+      },
+      "receiptId": 1
+    }
+  },
+  "preview2": {
+    "commit": "a43a56eb41ab904edf19527afae603313ae1fabc",
+    "recordSha256": "0c243c63f675831e35f3a25c23a0822c1580993bdd81ab0c8758bd3cb82390aa",
+    "proofOfFulfilment": {
+      "initial": {
+        "pool": 0,
+        "reserved": 0,
+        "tutor": 0,
+        "credit": 0
+      },
+      "prefundingReserved": 58,
+      "creditAfterBooking": 20,
+      "approved": {
+        "pool": 400,
+        "paymentReserved": 8,
+        "tutor": 0,
+        "approvalPaid": 0,
+        "obligationPaid": 0
+      },
+      "paid": {
+        "pool": 392,
+        "tutor": 8,
+        "paymentReserved": 0
+      },
+      "receiptId": 1
+    }
+  },
+  "preview2Individual": {
+    "commit": "a43a56eb41ab904edf19527afae603313ae1fabc",
+    "traceSourceCommit": "b6aaf443344729b51dd3a26f5042e8e2f10b954e",
+    "proofOfFulfilment": {
+      "approved": 8,
+      "paidAtApproval": 0,
+      "tutorBefore": 0,
+      "tutorAfter": 8,
+      "poolBefore": 200,
+      "poolAfter": 192
+    }
+  }
+}

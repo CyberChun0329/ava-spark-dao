@@ -1,0 +1,2773 @@
+--- a/SourceV14/Booking.lean
++++ b/SourceV14/Booking.lean
+@@ -100,8 +100,9 @@
+ 
+ def balanceBefore (opening : AccountId → Amount) (ledger : List CreditPosting)
+     (account : AccountId) (point : Moment) : Amount :=
+-  opening account + sumAmountsWhere ledger
+-    (fun e ↦ decide (e.account = account ∧ e.point.before point)) CreditPosting.change
++  opening account + sumAmounts
++    (ledger.filter fun e ↦ decide (e.account = account ∧ e.point.before point))
++    CreditPosting.change
+ 
+ /-- A credit entry alone does not prove that funds were received. -/
+ structure TopUpReceipt where
+--- a/SourceV14/Common.lean
++++ b/SourceV14/Common.lean
+@@ -68,21 +68,14 @@
+   cutoff : Moment
+   deriving DecidableEq, Repr
+ 
+-@[simp, specialize] def ClockBoundary.uniqueMatching {α : Type} (matchesKey : α → Bool) : List α → Option α
+-  | [] => none
+-  | row :: rows =>
+-    if matchesKey row then
+-      if rows.any matchesKey then none else some row
+-    else uniqueMatching matchesKey rows
+-
+ def ClockBoundary.find (boundaries : List ClockBoundary) (anchor : Moment)
+     (direction : BoundaryDirection) (duration : Nat) : Option Moment :=
+   if duration = 0 then some anchor
+   else
+     let matchesKey := fun row : ClockBoundary ↦
+       row.anchor == anchor && row.direction == direction && row.duration == duration
+-    match ClockBoundary.uniqueMatching matchesKey boundaries with
+-    | some row =>
++    match boundaries.filter matchesKey with
++    | [row] =>
+       if (match direction with
+         | .before => row.cutoff.seconds + duration == anchor.seconds
+         | .after => anchor.seconds + duration == row.cutoff.seconds) then some row.cutoff else none
+@@ -145,15 +138,6 @@
+ def sumAmounts {α : Type} (rows : List α) (amount : α → Amount) : Amount :=
+   rows.foldl (fun acc row ↦ acc + amount row) 0
+ 
+-@[inline] def sumAmountsWhere {α : Type} (rows : List α) (includeRow : α → Bool)
+-    (amount : α → Amount) : Amount :=
+-  rows.foldl (fun total row ↦ if includeRow row then total + amount row else total) 0
+-
+-@[simp] theorem sumAmountsWhere_eq_filter {α : Type} (rows : List α) (includeRow : α → Bool)
+-    (amount : α → Amount) :
+-    sumAmountsWhere rows includeRow amount = sumAmounts (rows.filter includeRow) amount := by
+-  simp only [sumAmountsWhere, sumAmounts, List.foldl_filter]
+-
+ /-- Section 1.2 excludes the handler for this decision if any listed interest is affected. -/
+ structure DirectInterest where
+   amountOwedToHandler : Bool
+--- a/SourceV14/Confirmation.lean
++++ b/SourceV14/Confirmation.lean
+@@ -197,19 +197,11 @@
+   materialsTermsRef : Option String
+   materialsPayer : Option ActorId
+   deadlines : PayAndReviewTerms
+-  /-- The tutor and fee recorded on this Part 1 when they differ from the original lesson. -/
+-  tutorAtBooking : Option (ActorId × Amount) := none
+-  deriving Repr
+-
+-@[simp] def PartOne.agreedTutor (f : PartOne) : ActorId :=
+-  (f.tutorAtBooking.map Prod.fst).getD f.lesson.tutor
+-
+-@[simp] def PartOne.agreedTutorFee (f : PartOne) : Amount :=
+-  (f.tutorAtBooking.map Prod.snd).getD f.lesson.normalTutorFee
++  deriving Repr
+ 
+ def PartOne.matches (f : PartOne) : Prop :=
+-  f.rulesVersion = "1.5" ∧ f.place.matches f.lesson ∧ f.place.validFees ∧
+-  0 ≤ f.agreedTutorFee ∧ f.schedule.lesson = f.lesson.id ∧ f.schedule.valid ∧
++  f.rulesVersion = "1.4" ∧ f.place.matches f.lesson ∧ f.place.validFees ∧
++  0 ≤ f.lesson.normalTutorFee ∧ f.schedule.lesson = f.lesson.id ∧ f.schedule.valid ∧
+   f.contacts.complete ∧ f.deadlines.valid ∧
+   (∀ text ∈ [f.serviceTerms, f.cancelChangeTerms, f.noFaultTerms,
+     f.applicableStartTerms, f.tutorAgreementRef], text ≠ "") ∧
+@@ -250,7 +242,7 @@
+   a.providedLesson = f.lesson.id ∧ a.providedPlace = f.place.id ∧
+   a.providedBy = f.lesson.coordinator ∧
+   (a.providedTo = f.place.customer ∨ a.providedTo ∈ f.customerRepresentatives) ∧
+-  a.providerSigner = f.lesson.provider ∧ a.tutorSigner = f.agreedTutor ∧
++  a.providerSigner = f.lesson.provider ∧ a.tutorSigner = f.lesson.tutor ∧
+   (a.customerSigner = f.place.customer ∨ a.customerSigner ∈ f.customerRepresentatives) ∧
+   (f.place.payer ≠ f.place.customer → a.payerAccepted.isSome = true) ∧
+   (∀ acceptance, a.payerAccepted = some acceptance → acceptance.1 = f.place.payer) ∧
+@@ -290,10 +282,10 @@
+ def TutorAgreement.agreedBeforeAcceptance (agreement : TutorAgreement) (f : PartOne)
+     (signatures : Signatures) : Prop :=
+   agreement.lesson = f.lesson.id ∧ agreement.provider = f.lesson.provider ∧
+-  agreement.tutor = f.agreedTutor ∧ agreement.reference = f.tutorAgreementRef ∧
++  agreement.tutor = f.lesson.tutor ∧ agreement.reference = f.tutorAgreementRef ∧
+   agreement.signed ∧ agreement.termsAgreedAt.before signatures.tutorAccepted ∧
+   agreement.service = f.serviceTerms ∧ agreement.serviceItems = f.serviceItems ∧
+-  agreement.fee = f.agreedTutorFee ∧
++  agreement.fee = f.lesson.normalTutorFee ∧
+   agreement.payment = f.deadlines.tutorPay ∧
+   agreement.tutorResponsibilities ≠ "" ∧ agreement.providerResponsibilities ≠ ""
+ 
+@@ -332,7 +324,7 @@
+ 
+ def ChangeRecord.matches (r : ChangeRecord) (f : PartOne)
+     (academicTeamAt : ActorId → Moment → Prop) : Prop :=
+-  r.matchesFrom f f.schedule f.agreedTutor academicTeamAt
++  r.matchesFrom f f.schedule f.lesson.tutor academicTeamAt
+ 
+ structure ExtensionRecord where
+   oldDeadline : Moment
+@@ -354,7 +346,7 @@
+   recordedDebit = debitTotal f.place ledger query
+ 
+ inductive RefundBasis where
+-  | agreedChange | noFaultCancellation | absence | standardCompensation
++  | noFaultCancellation | absence | standardCompensation
+   | directRequest | noAgreement | failedDelivery | afterMadeGood
+   deriving DecidableEq, Repr
+ 
+--- a/SourceV14/Course.lean
++++ b/SourceV14/Course.lean
+@@ -1,12 +1,10 @@
+ import SourceV14.Confirmation
+ import SourceV14.Funding
+ import SourceV14.CreditEvidence
+-import SourceV14.Workflow.AttendanceFacts
+ 
+ namespace SourceV14.Course
+ 
+ open Booking Settlement Confirmation CreditEvidence
+-open Workflow.AttendanceFacts
+ 
+ structure VerifiedLessonRefund where
+   form : PartOne
+@@ -14,7 +12,7 @@
+   obligation : ObligationId
+   settlement : RefundRecord
+   payment : PostedPayment
+-  approval : Option PaymentApproval := none
++  approval : PaymentApproval
+ 
+ def VerifiedLessonRefund.matches (refund : VerifiedLessonRefund) (ledger : List CreditPosting)
+     (payments : PaymentHistory) (authorities : ReviewAuthorities) (posting : CreditPosting) :
+@@ -27,19 +25,17 @@
+   form.matches ∧ debit ∈ ledger ∧ debit.kind = .lessonDebit p.lesson p.id ∧
+   debit.account = p.account ∧ form.confirmedAt.by debit.point ∧ 0 < debit.amount ∧
+   debit.point.by record.trigger ∧ record.trigger.by posting.point ∧
+-  record.reason ≠ "" ∧ 0 ≤ record.finalFee ∧ 0 ≤ record.amount ∧
+-  record.amount ≤ debitTotal p ledger record.trigger ∧
++  record.reason ≠ "" ∧ 0 ≤ record.finalFee ∧ record.amount ≤ debitTotal p ledger record.trigger ∧
+   record.matches form ledger posting.point record.reason record.trigger record.due record.amount
+     (some refund.obligation) ∧
+-  LessonRefundPostingMatches p ledger posting refund.obligation ∧
++  ValidLessonRefund p ledger posting refund.obligation record.amount false ∧
+   payments.actualPaymentWithEvidence refund.payment ∧ refund.payment.id = posting.id ∧
+   paid.part.lesson = p.lesson ∧ paid.part.purpose = .lessonRefund p.id ∧
+   paid.part.obligation = refund.obligation ∧ paid.destination = .account p.account ∧
+   paid.amount = posting.amount ∧ paid.atTime = posting.point ∧
+-  ∀ approval ∈ refund.approval,
+-    approval.authorisedAtGrant authorities ∧ approval.grantedAt.by posting.point ∧
+-    ∃ scope ∈ approval.scope, scope.part = paid.part ∧
+-      scope.destination = paid.destination ∧ 0 < scope.amount
++  refund.approval.authorisedAtGrant authorities ∧ refund.approval.grantedAt.by posting.point ∧
++  ∃ scope ∈ refund.approval.scope, scope.part = paid.part ∧
++    scope.destination = paid.destination ∧ paid.amount ≤ scope.amount
+ 
+ /-- The ledger consists of actual postings. IDs distinguish receipts from copies or reversals. -/
+ structure CreditRecords where
+@@ -72,8 +68,8 @@
+           match original.kind with
+           | .compensation _ _ => compensationClosureRemovalPosting ledger evidence.closed e
+           | _ => ∃ returned ∈ evidence.payments.returned,
+-              returned.id = e.id ∧ returned.paidReceipt = receipt ∧
+-                returned.amount = e.amount ∧ returned.returnedAt = e.point
++              returned.paidReceipt = receipt ∧ returned.amount = e.amount ∧
++                returned.returnedAt = e.point
+     | .lessonDebit _ _ | .topUpReturn _ =>
+         e.amount ≤ balanceBefore opening ledger e.account e.point
+     | _ => True) ∧
+@@ -126,24 +122,20 @@
+   agreedDocuments : List BookingTermDocument
+   provisions : List BookingTermsProvision
+ 
+-def ProvidedBookingTerms (f : PartOne) (a : Signatures) (documents : List BookingTermDocument)
+-    (provisions : List BookingTermsProvision) (debitAt : Option Moment) : Prop :=
++def BookingEvidence.providedAgreedTerms (booking : BookingEvidence) (f : PartOne) : Prop :=
++  let a := booking.signatures
+   let required : List BookingTermReference :=
+     [.rules f.rulesVersion, .tutorAgreement f.tutorAgreementRef] ++
+     f.materialsTermsRef.toList.map BookingTermReference.materialsTerms ++
+     f.additionalReferencedTerms.map BookingTermReference.other
+-  (∀ reference ∈ required, ∃ document ∈ documents, document.reference = reference) ∧
+-  (∃ provision ∈ provisions,
+-    provision.delivers f a.providedTo documents ∧
++  (∀ reference ∈ required, ∃ document ∈ booking.agreedDocuments, document.reference = reference) ∧
++  (∃ provision ∈ booking.provisions,
++    provision.delivers f a.providedTo booking.agreedDocuments ∧
+     provision.formProvided = a.formProvided ∧
+     provision.referencedTermsProvided = a.referencedTermsProvided) ∧
+-  ∃ provision ∈ provisions, provision.delivers f f.agreedTutor documents ∧
++  ∃ provision ∈ booking.provisions, provision.delivers f f.lesson.tutor booking.agreedDocuments ∧
+     TermsProvidedInTime provision.formProvided provision.referencedTermsProvided
+-      [a.tutorAccepted] debitAt
+-
+-def BookingEvidence.providedAgreedTerms (booking : BookingEvidence) (f : PartOne) : Prop :=
+-  ProvidedBookingTerms f booking.signatures booking.agreedDocuments booking.provisions
+-    (booking.debit.map (·.point))
++      [a.tutorAccepted] (booking.debit.map (·.point))
+ 
+ def FormUsesRoster (f : PartOne) (r : Roster) : Prop :=
+   f.place ∈ r.places ∧ f.privateRoster = some r.reference ∧ f.rosterLock = some r.lockedAt
+@@ -313,19 +305,6 @@
+         { scope, reference, terms := original, effectiveAt := originalAt } changes operative ∧
+       terms = operative.terms)
+ 
+-/-- The provider's effective group register at a stated occurrence. A
+-snapshot taken for an arrangement does not itself lock the settlement roster. -/
+-structure GroupRegisterSnapshot where
+-  lesson : LessonId
+-  atTime : Moment
+-  forms : List PartOne
+-
+-def GroupRegisterSnapshot.conforms (snapshot : GroupRegisterSnapshot) (l : Lesson) : Prop :=
+-  snapshot.lesson = l.id ∧ l.kind = .group ∧
+-  snapshot.forms ≠ [] ∧ (snapshot.forms.map (·.place.id)).Nodup ∧
+-  (snapshot.forms.map (·.place.student)).Nodup ∧
+-  ∀ form ∈ snapshot.forms, form.lesson = l ∧ form.matches ∧ form.confirmedAt.by snapshot.atTime
+-
+ structure StartEvidence where
+   effectiveForms : List PartOne
+   groupRoster : Option Roster
+@@ -340,7 +319,7 @@
+   academicTeamAt : LessonId → ActorId → Moment → Prop
+   teachingBegan : Option Moment
+   teachingEnded : Option Moment
+-  verifiedOneToOneAbsence : Option OneToOneAbsence := none
++  verifiedOneToOneAbsenceAt : Option Moment
+   studentsTakingLesson : List ActorId
+   afterLesson : AfterLessonRecords
+   studentFaults : StudentFaultHistory
+@@ -348,21 +327,6 @@
+   rosterReview : Option RosterReviewHistory := none
+   clockBoundaries : List ClockBoundary := []
+   tutorPayAmendments : TutorPayAmendments := {}
+-  groupRegisters : List GroupRegisterSnapshot := []
+-  /-- Independent evidence from the provider's register at the stated cut.
+-  A verified snapshot identifies all the effective places and their operative forms. -/
+-  verifiesGroupRegister : GroupRegisterSnapshot → Prop := fun _ ↦ False
+-  bookedRosters : List (PartOne × Roster) := []
+-  oneToOneAbsenceReasons : List OneToOneAbsenceReason := []
+-
+-def StartEvidence.verifiedOneToOneAbsenceAt (ev : StartEvidence) : Option Moment :=
+-  ev.verifiedOneToOneAbsence.map (·.start)
+-
+-def StartEvidence.retainsOneToOneAbsence (ev : StartEvidence) (form : PartOne) (schedule : Schedule)
+-    (start query : Moment) (facts : AbsenceFacts) : Prop :=
+-  ∃ row ∈ ev.verifiedOneToOneAbsence,
+-    row.matchesAt form start query ∧ row.schedule = schedule ∧
+-    row.factsAt ev.oneToOneAbsenceReasons query = facts
+ 
+ def StartEvidence.roster (ev : StartEvidence) : List Place :=
+   (ev.groupRoster.map (·.places)).getD (ev.effectiveForms.map (·.place))
+@@ -408,31 +372,6 @@
+       (∀ f ∈ forms, ev.formForRoster l r f) ∧
+       ∀ p ∈ r.places, ∃ f ∈ forms, f.place = p
+   | _, _ => False
+-
+-/-- Arrangement decisions use their own historical register. Settlement and
+-start checks still use the roster actually fixed for the lesson. -/
+-def StartEvidence.arrangementFormsAt (ev : StartEvidence) (l : Lesson) (query : Moment)
+-    (roster : Option Roster) (forms : List PartOne) : Prop :=
+-  match l.kind, roster with
+-  | .group, none =>
+-    (∀ locked ∈ ev.groupRoster, query.before locked.lockedAt) ∧
+-    ∃ snapshot ∈ ev.groupRegisters,
+-      snapshot.atTime = query ∧ snapshot.conforms l ∧ ev.verifiesGroupRegister snapshot ∧
+-      forms = snapshot.forms
+-  | .group, some locked =>
+-    (∃ original ∈ ev.groupRoster, original.lockedAt.by query) ∧
+-    ev.rosterFormsAt l query (some locked) forms
+-  | _, _ => ev.rosterFormsAt l query roster forms
+-
+-/-- Prefer the actual roster at confirmation; a later roster does not
+-retroactively change the class or funding scope of an earlier booking. -/
+-def StartEvidence.readsBookedRoster (ev : StartEvidence) (f : PartOne)
+-    (roster : Option Roster) (observed : Moment) (booked : Option Roster) : Prop :=
+-  (∃ original ∈ booked, (f, original) ∈ ev.bookedRosters) ∨
+-  ((∀ original, (f, original) ∉ ev.bookedRosters) ∧
+-    (booked = ev.groupRoster ∨ booked = roster ∨
+-      ∃ earlier point, booked = some earlier ∧ f.confirmedAt.by point ∧ point.by observed ∧
+-        EffectiveRosterAt earlier ev f.lesson point))
+ 
+ def StartEvidence.latestReplacement (ev : StartEvidence) (l : Lesson) (visible : Moment → Prop)
+     (active : Option TutorReplacement) : Prop :=
+@@ -463,7 +402,7 @@
+   r.accepted.forActor tutor next.confirmationTarget r.agreedAt ∧
+   r.providerConsent.forActor l.provider (.replacementTutor l.id tutor) r.agreedAt ∧
+   (∀ channel, r.noticeChannel = some channel → channel ≠ "") ∧
+-  ∃ roster forms prior, ev.arrangementFormsAt l r.agreedAt roster forms ∧
++  ∃ roster forms prior, ev.rosterFormsAt l r.agreedAt roster forms ∧
+     (∀ place ∈ r.record.scope, ∃ f ∈ forms, place = f.place.id) ∧
+     ev.latestReplacement l (fun t ↦ t.before r.effectiveAt) prior ∧
+     let previousTutor := (prior.map (·.agreement.tutor)).getD l.tutor
+@@ -484,25 +423,14 @@
+   ∃ active, ev.effectiveReplacement l query active ∧
+     tutor = (active.map (·.agreement.tutor)).getD l.tutor
+ 
+-/-- The signed form uses the teaching assignment and terms in force at its own confirmation. -/
+-def StartEvidence.readsTutorAtConfirmation (ev : StartEvidence) (f : PartOne) : Prop :=
+-  ∃ active, ev.effectiveReplacement f.lesson f.confirmedAt active ∧
+-    match active with
+-    | none => f.agreedTutor = f.lesson.tutor ∧ f.agreedTutorFee = f.lesson.normalTutorFee
+-    | some replacement =>
+-      let agreement := replacement.agreement
+-      f.agreedTutor = agreement.tutor ∧ f.serviceTerms = agreement.service ∧
+-      f.serviceItems = agreement.serviceItems ∧
+-      ev.tutorPayAmendments.termsAt f.lesson agreement.tutor
+-        ⟨agreement.reference, agreement.fee, agreement.payment⟩ agreement.termsAgreedAt
+-        f.confirmedAt ⟨f.tutorAgreementRef, f.agreedTutorFee, f.deadlines.tutorPay⟩
+-
+ def StartEvidence.confirmedBookingFor (ev : StartEvidence) (f : PartOne)
+     (roster : Option Roster) (observed : Moment) : Prop :=
+   ∃ booking bookedRoster, (f, booking) ∈ ev.bookings ∧
+-    ev.readsBookedRoster f roster observed bookedRoster ∧
++    (bookedRoster = ev.groupRoster ∨ bookedRoster = roster ∨
++      ∃ earlier point, bookedRoster = some earlier ∧ f.confirmedAt.by point ∧ point.by observed ∧
++        EffectiveRosterAt earlier ev f.lesson point) ∧
+     CanConfirmPlace f booking bookedRoster ev.openingCredit ev.ledger ev.creditRecords
+-      ev.discounts ev.teachingBegan ∧ ev.readsTutorAtConfirmation f
++      ev.discounts ev.teachingBegan
+ 
+ def EffectiveTutorAgreementAt (f : PartOne) (ev : StartEvidence) (query : Moment)
+     (tutor : ActorId) (reference : String) (normalFee : Amount) (payment : PaymentTerms)
+@@ -518,12 +446,9 @@
+         ⟨f.tutorAgreementRef, f.lesson.normalTutorFee, f.deadlines.tutorPay⟩
+       let selected : TutorPayTerms := ⟨reference, normalFee, payment⟩
+       let scope := (f.lesson.id, tutor)
+-      if f.agreedTutor ≠ tutor ∨ f.agreedTutorFee ≠ f.lesson.normalTutorFee then False
+-      else if ev.tutorPayAmendments.amendments.any
+-          (fun change ↦ change.replacement.scope == scope) then
++      if ev.tutorPayAmendments.amendments.any (fun change ↦ change.replacement.scope == scope) then
+         ∃ signedForm booking, (signedForm, booking) ∈ ev.bookings ∧
+           signedForm.lesson = f.lesson ∧ signedForm.tutorAgreementRef = f.tutorAgreementRef ∧
+-          signedForm.agreedTutor = tutor ∧ signedForm.agreedTutorFee = f.lesson.normalTutorFee ∧
+           signedForm.deadlines.tutorPay = f.deadlines.tutorPay ∧
+           booking.tutorAgreement.agreedBeforeAcceptance signedForm booking.signatures ∧
+           ev.tutorPayAmendments.termsAt f.lesson tutor original booking.tutorAgreement.termsAgreedAt
+@@ -541,7 +466,7 @@
+     (atTime : Moment) (serviceItems : List Nat) : Prop :=
+   f.matches ∧ ∃ replacement, ev.effectiveReplacement f.lesson atTime replacement ∧
+     match replacement with
+-    | none => tutor = f.lesson.tutor ∧ f.agreedTutor = tutor ∧ serviceItems = f.serviceItems ∧
++    | none => tutor = f.lesson.tutor ∧ serviceItems = f.serviceItems ∧
+       ∃ entry ∈ ev.bookings,
+         entry.1 = f ∧ entry.2.signatures.tutorSigner = tutor ∧
+         entry.2.signatures.tutorAccepted.by atTime ∧
+@@ -552,7 +477,7 @@
+ def AgreedScheduleChange.records (change : AgreedScheduleChange) (l : Lesson)
+     (ev : StartEvidence) (roster : Option Roster) (forms : List PartOne) : Prop :=
+   let next := change.record.nextSchedule
+-  ev.arrangementFormsAt l next.agreedAt roster forms ∧ next.lesson = l.id ∧ next.valid ∧
++  ev.rosterFormsAt l next.agreedAt roster forms ∧ next.lesson = l.id ∧ next.valid ∧
+   change.previous ∈ ev.scheduleHistory ∧ change.previous.lesson = l.id ∧
+   change.previous.effectiveAt.by next.agreedAt ∧
+   change.previous.effectiveAt.before next.effectiveAt ∧
+@@ -578,14 +503,12 @@
+ private def groupRescheduleOnPriorSchedules (l : Lesson) (ev : StartEvidence)
+     (change : AgreedScheduleChange) : Prop :=
+   let next := change.record.nextSchedule
+-  ∃ roster forms tutor, change.records l ev roster forms ∧
++  ∃ roster forms tutor, change.records l ev (some roster) forms ∧
+     (∀ f ∈ forms, ∃ window ∈ f.groupRescheduleCutoff,
+       window.allowsFrom f.schedule change.previous (change.priorSchedules l ev) next.agreedAt
+         f.confirmedAt ev.clockBoundaries) ∧
+-    EffectiveTutorAt l ev
+-      (if change.record.replacementTutor.isSome then next.effectiveAt else next.agreedAt) tutor ∧
+-    GroupReschedule l (forms.map (·.place)) change.record.consents next change.approvals
+-      ev.teachingBegan tutor
++    EffectiveTutorAt l ev next.effectiveAt tutor ∧
++    GroupReschedule l roster.places change.record.consents next change.approvals ev.teachingBegan tutor
+ 
+ private def AgreedScheduleChange.allowedOnPriorSchedules (change : AgreedScheduleChange) (l : Lesson)
+     (ev : StartEvidence) : Prop :=
+@@ -600,32 +523,9 @@
+         ∀ actor ∈ [tutor, l.provider], ∃ c ∈ change.approvals,
+           c.forActor actor s.confirmationTarget s.agreedAt)
+ 
+-def StartEvidence.verifiedLockedRegister (ev : StartEvidence) (l : Lesson)
+-    (locked : Roster) : Prop :=
+-  let register : GroupRegisterSnapshot := ⟨l.id, locked.lockedAt, ev.effectiveForms⟩
+-  RegisterMatchesForms locked ev l ∧ register.conforms l ∧ ev.verifiesGroupRegister register
+-
+-/-- The first group's date can come from a retained commitment or a
+-verified historical register. A later member's form can carry a revised date. -/
+-def GroupOriginalSchedule (l : Lesson) (ev : StartEvidence) (s : Schedule) : Prop :=
+-  l.kind = .group ∧
+-  (∀ row ∈ ev.scheduleHistory, row.lesson = l.id → s.effectiveAt.by row.effectiveAt) ∧
+-  (((∃ f booking, (f, booking) ∈ ev.bookings ∧ f.matches ∧ f.lesson = l ∧ f.schedule = s ∧
+-      booking.signatures.valid f (booking.debit.map (·.point)) ∧
+-      booking.tutorAgreement.agreedBeforeAcceptance f booking.signatures ∧
+-      booking.signatures.providerAccepted.by f.confirmedAt ∧
+-      booking.signatures.tutorAccepted.by f.confirmedAt ∧
+-      booking.signatures.customerAccepted.by f.confirmedAt ∧
+-      (∀ acceptance ∈ booking.signatures.payerAccepted, acceptance.2.by f.confirmedAt)) ∨
+-    (∃ locked ∈ ev.groupRoster, ev.verifiedLockedRegister l locked ∧
+-      ∃ f ∈ ev.effectiveForms, f.schedule = s)) ∨
+-    ∃ snapshot ∈ ev.groupRegisters, snapshot.conforms l ∧ ev.verifiesGroupRegister snapshot ∧
+-      ∃ f ∈ snapshot.forms, f.schedule = s)
+-
+ def ScheduleWasAgreed (l : Lesson) (ev : StartEvidence) (s : Schedule) : Prop :=
+-  s.lesson = l.id ∧ s.valid ∧
+-  ((l.kind = .oneToOne ∧ ev.rosterMatchesForms l ∧ ∀ f ∈ ev.effectiveForms, f.schedule = s) ∨
+-    GroupOriginalSchedule l ev s ∨
++  ev.rosterMatchesForms l ∧ s.lesson = l.id ∧ s.valid ∧
++  ((∀ f ∈ ev.effectiveForms, f.schedule = s) ∨
+     ∃ change ∈ ev.changes, change.record.nextSchedule = s ∧ change.allowedOnPriorSchedules l ev)
+ 
+ def EffectiveSchedule (l : Lesson) (ev : StartEvidence) (s : Schedule) (query : Moment) :
+@@ -692,11 +592,6 @@
+ 
+ def StartEvidence.paidInFull (ev : StartEvidence) (f : PartOne) (query : Moment) : Prop :=
+   ev.creditRecords.lessonFees.paidInFull f ev.ledger ev.discounts query
+-
+-def StartEvidence.paidAtStart (ev : StartEvidence) (f : PartOne) (start : Moment) : Prop :=
+-  ev.creditRecords.lessonFees.paidInFull f
+-    (ev.ledger.filter (fun entry ↦ decide (entry.point.before start)))
+-    (ev.discounts.filter (fun discount ↦ decide (discount.point.before start))) start
+ 
+ def CanStart (l : Lesson) (ev : StartEvidence) (s : Schedule) (occurred : Moment) : Prop :=
+   let notices := ev.noticesFor s
+@@ -713,19 +608,18 @@
+     ∀ f ∈ forms,
+       let tutorChannel := (active.map (·.noticeChannel)).getD f.contacts.tutorNotice
+       f.confirmedAt.before occurred ∧ ev.confirmedBookingFor f roster occurred ∧
+-      ev.paidAtStart f occurred ∧
++      ev.creditRecords.lessonFees.paidInFull f
++        (ev.ledger.filter (fun entry ↦ decide (entry.point.before occurred)))
++        (ev.discounts.filter (fun discount ↦ decide (discount.point.before occurred))) occurred ∧
+       (∃ n ∈ notices, NoticePerformed n s.confirmationTarget f.place.student f.contacts.studentNotice ∧
+         ev.academicTeamAt l.id n.sender n.point ∧ n.point.before occurred) ∧
+       (∃ n ∈ notices, n.target = s.confirmationTarget ∧ n.recipient = tutor ∧ n.channel ≠ "" ∧
+         (∀ channel, tutorChannel = some channel → n.channel = channel) ∧ n.point.before occurred ∧
+         (n.sender = l.provider ∨ ev.academicTeamAt l.id n.sender n.point)) ∧
+-      -- A place signed after the change uses the operative teaching assignment on its Part 1.
+-      ∀ replacement ∈ active.toList, f.confirmedAt.before replacement.effectiveAt →
+-        f.place.id ∈ replacement.record.scope ∧
+-        ∃ n ∈ replacement.record.notices,
+-          NoticePerformed n (.replacementTutor l.id tutor) f.place.student f.contacts.studentNotice ∧
+-          ev.academicTeamAt l.id n.sender n.point ∧
+-          replacement.agreedAt.by n.point ∧ n.point.before occurred
++      ∀ replacement ∈ active.toList, ∃ n ∈ replacement.record.notices,
++        NoticePerformed n (.replacementTutor l.id tutor) f.place.student f.contacts.studentNotice ∧
++        ev.academicTeamAt l.id n.sender n.point ∧
++        replacement.agreedAt.by n.point ∧ n.point.before occurred
+ 
+ def CanConfirmSeparateBooking (original next : PartOne) (change : ChangeRecord)
+     (booking : BookingEvidence) (ev : StartEvidence) : Prop :=
+@@ -739,17 +633,10 @@
+   ∃ started ended, ev.teachingBegan = some started ∧ ev.teachingEnded = some ended ∧
+     started.by ended ∧ ended.by point ∧ point.by query
+ 
+-/-- §2.4 and Form Part 2 permit a student's report about an agreed occurrence with no teaching. -/
+-def StartEvidence.reportedStudentOccurrence (ev : StartEvidence) (f : PartOne)
+-    (point : Moment) : Prop :=
+-  ev.reportedAfterLesson point point ∨
+-  (ev.teachingBegan = none ∧ ev.teachingEnded = none ∧
+-    ∃ schedule, EffectiveSchedule f.lesson ev schedule schedule.start ∧
+-      f.confirmedAt.by schedule.start ∧ schedule.start.by point)
+-
+ def AttendanceReportRecorded (ev : StartEvidence) (l : Lesson) (p : Place)
+     (query : Moment) (r : AttendanceReport) : Prop :=
+-  r ∈ ev.afterLesson.attendance ∧ AttendanceConcerns l p r ∧ ev.reportedAfterLesson r.point query
++  r ∈ ev.afterLesson.attendance ∧ r.lesson = l.id ∧ r.place = p.id ∧ r.student = p.student ∧
++    r.coordinator = l.coordinator ∧ ev.reportedAfterLesson r.point query
+ 
+ def AttendanceRecorded (ev : StartEvidence) (l : Lesson) (p : Place)
+     (query : Moment) (attended : Bool) : Prop :=
+@@ -759,7 +646,12 @@
+ 
+ def ServiceFeedbackRecorded (ev : StartEvidence) (f : PartOne)
+     (query : Moment) (report : DeliveryReport) : Prop :=
+-  report ∈ ev.afterLesson.serviceFeedback ∧ ServiceFeedbackConcerns f report ∧
++  report ∈ ev.afterLesson.serviceFeedback ∧ report.lesson = f.lesson.id ∧
++    report.place = f.place.id ∧ report.student = f.place.student ∧
++    report.coordinator = f.lesson.coordinator ∧
++    (∀ service ∈ report.servicesReceived, service ∈ f.serviceItems) ∧
++    (∀ service ∈ report.servicesNotReceived, service ∈ f.serviceItems) ∧
++    (∀ service ∈ report.servicesReceived, service ∉ report.servicesNotReceived) ∧
+     ev.reportedAfterLesson report.point query
+ 
+ def StudentCompletionRecorded (ev : StartEvidence) (f : PartOne) (query : Moment)
+@@ -807,8 +699,7 @@
+   classical
+   exact (r.places.filter fun place ↦ decide (
+     place.id ∈ attendanceConfirmed ∧ place.id ∉ faultFound ∧
+-    ∃ f, ev.formForRoster l r f ∧ f.place = place ∧
+-      ∃ start, ev.teachingBegan = some start ∧ start.by query ∧ ev.paidAtStart f start)).length
++    ∃ f, ev.formForRoster l r f ∧ f.place = place ∧ ev.paidInFull f query)).length
+ 
+ /-- §4.2 uses payment measured from actual entries and confirmed attendance per place. -/
+ def CanSettleGroupNormally (l : Lesson) (ev : StartEvidence) (s : Schedule)
+@@ -816,7 +707,7 @@
+     (tutorReportedCompletion : Bool) (attendanceConfirmed faultFound : List PlaceId) : Prop :=
+   EffectiveRosterAt r ev l query ∧ ev.teachingBegan = some actualStart ∧ actualStart.by query ∧
+   GroupReportsMatch ev l r query tutorReportedCompletion attendanceConfirmed faultFound ∧
+-  l.kind = .group ∧ r.valid l s.start ∧ CanStart l ev s actualStart ∧
++  l.kind = .group ∧ r.valid l s.start ∧ s.start.by query ∧ CanStart l ev s actualStart ∧
+   tutorReportedCompletion = true ∧
+   r.places.length < 2 * ev.groupConfirmationCount r l query attendanceConfirmed faultFound
+ 
+@@ -880,9 +771,7 @@
+   (∀ began ∈ ev.teachingBegan, r.point.before began) ∧
+   ∃ window ∈ f.oneToOneAdvanceCutoff,
+     match window with
+-    | .fixed .. =>
+-      window.allows f.schedule.start r.point ev.clockBoundaries ∧
+-      ∃ current, EffectiveSchedule f.lesson ev current r.point ∧ r.point.before current.start
++    | .fixed .. => window.allows f.schedule.start r.point ev.clockBoundaries
+     | .beforeLessonStart .. =>
+       f ∈ ev.effectiveForms ∧ ∃ current, EffectiveSchedule f.lesson ev current r.point ∧
+         window.allowsFrom f.schedule current ev.scheduleHistory r.point f.confirmedAt ev.clockBoundaries
+--- a/SourceV14/Funding.lean
++++ b/SourceV14/Funding.lean
+@@ -52,7 +52,7 @@
+ 
+ def CurrentLessonFunds.amountFrom (funds : CurrentLessonFunds) (source : FundingSource)
+     (amount : FundingEntry → Amount) : Amount :=
+-  sumAmountsWhere funds.entries (fun entry ↦ entry.source == source) amount
++  sumAmounts (funds.entries.filter (fun entry ↦ entry.source == source)) amount
+ 
+ def CurrentLessonFunds.coversWith (funds : CurrentLessonFunds) (expense : Amount)
+     (amount : FundingEntry → Amount) : Prop :=
+@@ -174,19 +174,6 @@
+   | .materialsShare material holder => .materialsShare material holder
+   | _ => .other
+ 
+-structure MaterialsFundingKey where
+-  lesson : LessonId
+-  place : PlaceId
+-  material : Nat
+-  termsReference : String
+-  deriving DecidableEq, Repr
+-
+-/-- The part of a booked materials expense allocated to a specific place. -/
+-structure FundingMaterialPortion where
+-  place : PlaceId
+-  amount : Amount
+-  deriving DecidableEq, Repr
+-
+ /-- One row per applicable underlying cost. The scope is empty for common expenses and
+     otherwise names the outcomes that cause the cost. Several outcomes can name one shared cost. -/
+ structure FundingExpense where
+@@ -199,7 +186,6 @@
+   agreedRecipient : Option ActorId
+   outcomes : List (PlaceId × String)
+   conditions : List FundingCondition
+-  materialsPortions : List FundingMaterialPortion := []
+   deriving DecidableEq, Repr
+ 
+ def FundingExpense.key (expense : FundingExpense) : FundingExpenseKind × String × String :=
+@@ -209,44 +195,18 @@
+     (checkedAt : Moment) : Amount :=
+   payments.remainingObligationBefore expense.lesson expense.obligation
+     (.person expense.kind.payee expense.agreedRecipient) expense.amount checkedAt
+-    (some expense.kind.purpose)
+-
+-/-- The part of an expense still reserved for this exact estimate. A receipt against a
+-    multi-place expense could have drawn upon this portion. -/
+-def FundingExpense.materialsCoverage (expense : FundingExpense) (key : MaterialsFundingKey)
+-    (payments : PaymentHistory) (checkedAt : Moment) : Amount :=
+-  match expense.kind with
+-  | .materialsShare material _ =>
+-      if key.lesson = expense.lesson ∧ key.material = material ∧
+-          key.termsReference = expense.agreementReference then
+-        let portion := sumAmountsWhere expense.materialsPortions (·.place == key.place) (·.amount)
+-        max 0 (portion - (expense.amount - expense.owedAt payments checkedAt))
+-      else 0
+-  | _ => 0
+ 
+ /-- The agreed form references on which the funding inventory is based. -/
+ structure FundingFormTerms where
+   place : PlaceId
+   references : List String
+   noFaultReference : String
+-  materialsReference : Option String := none
+   deriving DecidableEq, Repr
+ 
+ def FundingFormTerms.fromForm (form : Confirmation.PartOne) : FundingFormTerms :=
+   ⟨form.place.id, [form.serviceTerms, form.cancelChangeTerms, form.noFaultTerms,
+     form.applicableStartTerms, form.tutorAgreementRef] ++ form.materialsTermsRef.toList ++
+-    form.discountBasis.toList, form.noFaultTerms, form.materialsTermsRef⟩
+-
+-def FundingExpense.validMaterialsPortions (expense : FundingExpense)
+-    (forms : List FundingFormTerms) : Prop :=
+-  match expense.kind with
+-  | .materialsShare .. =>
+-      (expense.materialsPortions.map FundingMaterialPortion.place).Nodup ∧
+-      sumAmounts expense.materialsPortions FundingMaterialPortion.amount ≤ expense.amount ∧
+-      ∀ portion ∈ expense.materialsPortions, 0 ≤ portion.amount ∧
+-        ∃ form ∈ forms, form.place = portion.place ∧
+-          form.materialsReference = some expense.agreementReference
+-  | _ => expense.materialsPortions = []
++    form.discountBasis.toList, form.noFaultTerms⟩
+ 
+ inductive PartialNoFaultScope where
+   | infeasible (basis : String)
+@@ -367,7 +327,6 @@
+         receipt.evidence.isSome = true ∧ 0 < receipt.instruction.amount) ∧
+     (∀ expense ∈ terms.expenses, expense.lesson = lesson.id ∧
+       expense.agreementReference ≠ "" ∧ expense.component ≠ "" ∧ 0 ≤ expense.amount ∧
+-      expense.validMaterialsPortions inventory.forms ∧
+       (∀ key ∈ expense.outcomes, key ∈ outcomeKeys) ∧
+       expense.conditions.Perm (inventory.conditionsFor (.expense expense.obligation)) ∧
+       ∀ receipt ∈ terms.payments.posted, receipt.instruction.atTime.before checkedAt →
+@@ -420,19 +379,6 @@
+   sumAmounts scenario.selections (fun (place, outcome) ↦ outcome.customerCost place) +
+     sumAmounts (scenario.expenses terms) (fun expense ↦ expense.owedAt terms.payments checkedAt)
+ 
+-/-- Only the part of a live materials estimate absent from this booking case is added
+-    to its cost. Use in this lesson can generate a share only in a teaching case. -/
+-def FundingCase.remainingCostWithMaterials (scenario : FundingCase) (terms : FundingTerms)
+-    (checkedAt : Moment) (budgets : List (MaterialsFundingKey × Amount)) : Amount :=
+-  let booked := scenario.expenses terms
+-  let additional := if scenario.facts .teachingBegan then
+-    sumAmounts budgets (fun (key, amount) ↦
+-      let covered := sumAmounts booked (fun expense ↦
+-        expense.materialsCoverage key terms.payments checkedAt)
+-      max 0 (amount - covered))
+-    else 0
+-  scenario.remainingCost terms checkedAt + additional
+-
+ def FundingCase.accountedCost (scenario : FundingCase) (terms : FundingTerms)
+     (checkedAt : Moment) : Amount :=
+   scenario.remainingCost terms checkedAt + scenario.paidTeaching terms checkedAt
+@@ -453,14 +399,6 @@
+ /-- This confirmation uses the terms that were used for the funding check. -/
+ def FundingCheck.readsForm (check : FundingCheck) (form : Confirmation.PartOne) : Prop :=
+   FundingFormTerms.fromForm form ∈ check.terms.inventory.forms
+-
+-/-- Recheck compatible booking cases with the materials budgets known at the check. -/
+-def FundingCheck.casesSecuredWithMaterials (check : FundingCheck) (lesson : Lesson)
+-    (places : List Place) (budgets : List (MaterialsFundingKey × Amount))
+-    (teachingHasBegun : Prop) : Prop :=
+-  ∀ scenario : FundingCase, scenario.possible check.terms lesson places →
+-    (teachingHasBegun → scenario.facts .teachingBegan = true) →
+-    check.funds.secures (scenario.remainingCostWithMaterials check.terms check.checkedAt budgets)
+ 
+ /-- The balances cover each possible individual or joint result. Genuinely incompatible
+     outcomes never occur in one selection and can rely on the same secured funds. -/
+--- a/SourceV14/Materials.lean
++++ b/SourceV14/Materials.lean
+@@ -124,8 +124,7 @@
+   lesson : Lesson
+   startedAt : Moment
+   endedAt : Moment
+-  /-- The tutor's report when this check cites it. Actual use can be independently verified. -/
+-  tutorReport : Option TutorMaterialsReport
++  tutorReport : TutorMaterialsReport
+   authority : MaterialsUseAuthority
+   places : List Place
+   deliveryReports : List Booking.DeliveryReport
+@@ -141,18 +140,14 @@
+ 
+ def VerifiedMaterialsUse.verifiedBy (use : VerifiedMaterialsUse) (atTime : Moment) : Prop :=
+   use.startedAt.before use.endedAt ∧
+-  (match use.tutorReport with
+-  | none => use.endedAt.by atTime
+-  | some report => report.timely use.lesson use.startedAt use.endedAt ∧
+-      report.reportedAt.by atTime) ∧
++  use.tutorReport.timely use.lesson use.startedAt use.endedAt ∧
++  use.tutorReport.reportedAt.by atTime ∧
+   ∀ finding ∈ use.findings,
+     use.authority.mayCheck use.lesson finding ∧
++    (finding.material ∈ use.tutorReport.reportedMaterials ∨
++      use.verifiedReportOmission finding) ∧
+     use.startedAt.by finding.usedAt ∧ finding.usedAt.by use.endedAt ∧
+-    (match use.tutorReport with
+-    | none => finding.usedAt.by finding.checkedAt
+-    | some report => (finding.material ∈ report.reportedMaterials ∨
+-        use.verifiedReportOmission finding) ∧ report.reportedAt.by finding.checkedAt) ∧
+-    finding.checkedAt.by atTime ∧
++    use.tutorReport.reportedAt.by finding.checkedAt ∧ finding.checkedAt.by atTime ∧
+     finding.evidence.reference ≠ "" ∧
+     ∃ place ∈ use.places, place.id = finding.place ∧
+       match finding.evidence with
+@@ -387,9 +382,7 @@
+   /-- The applicable terms assign this specific settlement and place to this disposition. -/
+   governs : LessonId → String → PlaceId → Prop
+   originalCollections : LessonId → String → PlaceId → List MaterialsCollection
+-  /-- Collections for the identified shortfall of this original settlement and place. -/
+-  shortfallCollections : LessonId → (originalReference shortfallReference : String) →
+-    PlaceId → List MaterialsCollection
++  shortfallCollections : LessonId → String → PlaceId → List MaterialsCollection
+ 
+ def MaterialsTransferRecord.authorised {material : MaterialId}
+     (record : MaterialsTransferRecord material) (sparkDao : ActorId)
+@@ -408,10 +401,8 @@
+   termsReference : String
+   originalSettlementReference : String
+   reference : String
+-  obligation : ObligationId
+   identifiedAt : Moment
+-  /-- The newly established amount for each affected place. -/
+-  charges : List MaterialsCharge
++  originallySettledCharge : PlaceId → Amount
+ 
+ /-- The retained original charge for this material under the adopted lesson terms. -/
+ structure MaterialsSettlementRecord where
+@@ -419,148 +410,9 @@
+   material : MaterialId
+   termsReference : String
+   reference : String
+-  obligation : ObligationId
+   settledAt : Moment
+   places : List PlaceId
+   charges : List MaterialsCharge
+-
+-/-- The obligation whose gross charge was recognised for this lesson and agreement. -/
+-structure MaterialsChargeScope where
+-  lesson : LessonId
+-  material : MaterialId
+-  termsReference : String
+-  originalReference : String
+-  shortfallReference : Option String
+-  obligation : ObligationId
+-  establishedAt : Moment
+-  deriving DecidableEq
+-
+-def MaterialsSettlementRecord.chargeScope (row : MaterialsSettlementRecord) :
+-    MaterialsChargeScope :=
+-  ⟨row.lesson, row.material, row.termsReference, row.reference, none, row.obligation, row.settledAt⟩
+-
+-/-- A place within the original settlement can have had no charge before review. -/
+-private def includeUnchargedPlaces (charges : List MaterialsCharge)
+-    (places : List PlaceId) (material : MaterialId) : List MaterialsCharge :=
+-  charges ++ ((places.filter fun place ↦ !charges.any (·.place == place)).map
+-    fun place ↦ ⟨place, material, 0⟩)
+-
+-def MaterialsSettlementRecord.grossChargeInputs (row : MaterialsSettlementRecord) :
+-    List MaterialsCharge :=
+-  includeUnchargedPlaces row.charges row.places row.material
+-
+-def MaterialsShortfall.grossChargeInputs (row : MaterialsShortfall)
+-    (original : MaterialsSettlementRecord) : List MaterialsCharge :=
+-  includeUnchargedPlaces row.charges original.places row.material
+-
+-def MaterialsShortfall.chargeScope (row : MaterialsShortfall) : MaterialsChargeScope :=
+-  ⟨row.lesson, row.material, row.termsReference, row.originalSettlementReference,
+-    some row.reference, row.obligation, row.identifiedAt⟩
+-
+-def MaterialsChargeScope.matchesPart (scope : MaterialsChargeScope) (part : PaymentPartRef) :
+-    Bool :=
+-  part.lesson == scope.lesson && part.obligation == scope.obligation &&
+-    match part.purpose, scope.shortfallReference with
+-    | .materialsShare material _, none => material == scope.material
+-    | .materialsShortfall material _ claim, some reference =>
+-      material == scope.material && claim == reference
+-    | _, _ => false
+-
+-/-- Verified replacement of this place's gross charge, with the date the evidence was available. -/
+-structure MaterialsGrossAttribution where
+-  verifiedAt : Moment
+-  previous : Amount
+-  revised : Amount
+-
+-/-- Gross-charge evidence for the exact adopted review and scope. An aggregate upper bound can
+-    establish cap headroom without assigning the gross charge among places. -/
+-structure MaterialsGrossEvidence where
+-  atPlace : MaterialsChargeScope → PaymentCorrectionCase → PlaceId →
+-    Option MaterialsGrossAttribution := fun _ _ _ ↦ none
+-  upperBound : MaterialsChargeScope → List PaymentCorrectionCase → Option (Moment × Amount) :=
+-    fun _ _ ↦ none
+-  /-- A new factual check supports further use at this place after the reviewed reduction. -/
+-  supportsLaterUse : MaterialsChargeScope → PaymentCorrectionCase → ConfirmedMaterialUse → Bool :=
+-    fun _ _ _ ↦ false
+-
+-structure MaterialsPrincipalContext where
+-  corrections : List PaymentCorrectionCase := []
+-  gross : MaterialsGrossEvidence := {}
+-
+-def MaterialsPrincipalContext.reviewsFor (principal : MaterialsPrincipalContext)
+-    (scope : MaterialsChargeScope) (atTime : Moment) : List PaymentCorrectionCase :=
+-  (principal.corrections.filter fun row ↦
+-    row.correction.lesson == scope.lesson && scope.matchesPart row.originalPart.ref &&
+-    row.originalPart.ref.sameCorrectionClaim row.money.corrected.ref && decide
+-      (scope.establishedAt.by row.finding.decidedAt ∧
+-        row.finding.decidedAt.by row.correction.recordedAt ∧
+-        row.correction.recordedAt.by atTime)).mergeSort
+-    (fun first second ↦ decide (first.finding.decidedAt.by second.finding.decidedAt))
+-
+-/-- The last verified gross amount and whether a later gross change awaits attribution.
+-    A zero historical row does not establish which places a later amount correction affects. -/
+-def MaterialsPrincipalContext.chargeAt (principal : MaterialsPrincipalContext)
+-    (scope : MaterialsChargeScope) (charge : MaterialsCharge) (atTime : Moment)
+-    (laterUse : Option (List ConfirmedMaterialUse) := none) :
+-    MaterialsCharge × Bool :=
+-  (principal.reviewsFor scope atTime).foldl (fun (previous, pending) review ↦
+-    if pending then (previous, true)
+-    else
+-      let missing := review.originalPart.amount != review.money.corrected.amount
+-      match principal.gross.atPlace scope review charge.place with
+-      | some fact =>
+-        if review.finding.decidedAt.by fact.verifiedAt ∧ fact.verifiedAt.by atTime ∧
+-            fact.previous = previous.amount ∧ 0 ≤ fact.revised then
+-          let needsNewUse := laterUse.any fun findings ↦
+-            decide (fact.revised < previous.amount) && !findings.any (fun finding ↦
+-              finding.lesson == scope.lesson && finding.place == charge.place &&
+-              decide (review.correction.recordedAt.by finding.checkedAt ∧
+-                finding.checkedAt.by atTime) &&
+-              principal.gross.supportsLaterUse scope review finding)
+-          ({ previous with amount := fact.revised }, needsNewUse)
+-        else (previous, missing)
+-      | none => (previous, missing)) (charge, false)
+-
+-def MaterialsPrincipalContext.grossUpperBoundAt (principal : MaterialsPrincipalContext)
+-    (scope : MaterialsChargeScope) (charges : List MaterialsCharge) (atTime : Moment) :
+-    Option Amount := do
+-  let effective := charges.map fun charge ↦ principal.chargeAt scope charge atTime
+-  if effective.any Prod.snd then
+-    let revisions := principal.reviewsFor scope atTime
+-    let (verifiedAt, bound) ← principal.gross.upperBound scope revisions
+-    if verifiedAt.by atTime ∧
+-        revisions.all (fun row ↦ decide (row.finding.decidedAt.by verifiedAt)) = true ∧
+-        sumAmountsWhere effective (fun row ↦ !row.2) (fun row ↦ row.1.amount) ≤ bound then
+-      some bound
+-    else none
+-  else some (sumAmounts effective (fun row ↦ row.1.amount))
+-
+-def MaterialsShortfall.belongsTo (shortfall : MaterialsShortfall)
+-    (original : MaterialsSettlementRecord) : Bool :=
+-  shortfall.lesson == original.lesson && shortfall.material == original.material &&
+-    shortfall.termsReference == original.termsReference &&
+-    shortfall.originalSettlementReference == original.reference
+-
+-def MaterialsShortfall.addsToPlaceCoveredBy (shortfall other : MaterialsShortfall) : Prop :=
+-  ∃ charge ∈ shortfall.charges, 0 < charge.amount ∧
+-    ∃ earlier ∈ other.charges, earlier.place = charge.place ∧ 0 < earlier.amount
+-
+-/-- Compare the verified total for each place with amounts already established. -/
+-def MaterialsShortfall.newCharges (shortfall : MaterialsShortfall)
+-    (original : MaterialsSettlementRecord) (history : List MaterialsShortfall)
+-    (verified : List MaterialsCharge) (principal : MaterialsPrincipalContext := {})
+-    (findings : List ConfirmedMaterialUse := []) :
+-    List MaterialsCharge :=
+-  let prior := history.filter (fun row ↦ row.belongsTo original &&
+-    decide (row.identifiedAt.before shortfall.identifiedAt))
+-  let read := fun scope charge ↦ principal.chargeAt scope charge shortfall.identifiedAt
+-    (some findings)
+-  let established := original.grossChargeInputs.map (read original.chargeScope) ++
+-    prior.flatMap (fun row ↦ (row.grossChargeInputs original).map (read row.chargeScope))
+-  verified.map fun charge ↦
+-    let here := established.filter (fun row ↦ row.1.place == charge.place)
+-    let earlier := sumAmounts here (fun row ↦ row.1.amount)
+-    { charge with amount := if here.any Prod.snd then 0 else max 0 (charge.amount - earlier) }
+ 
+ /-- The originally agreed share schedule and later private amendments for one material. -/
+ structure MaterialsShareHistory (material : MaterialId) where
+@@ -627,8 +479,7 @@
+     (lesson : LessonId) (place : PlaceId) : List MaterialsCollection :=
+   match evidence.shortfall with
+   | none => record.originalCollections lesson evidence.originalSettlementReference place
+-  | some shortfall =>
+-    record.shortfallCollections lesson evidence.originalSettlementReference shortfall.reference place
++  | some _ => record.shortfallCollections lesson evidence.originalSettlementReference place
+ 
+ def MaterialsShareEvidence.collectionsMatch {material : MaterialId}
+     (evidence : MaterialsShareEvidence material) (use : VerifiedMaterialsUse)
+@@ -647,156 +498,55 @@
+     ∀ holder, sumAmounts (collections.filter (fun receipt ↦ receipt.holder == holder))
+       MaterialsCollection.amount = receivedBefore holder record.transfer.effectiveAt
+ 
+-/-- Read the share basis for the affected income, including agreed changes in force at transfer. -/
+-def MaterialsShareEvidence.transferBasisAt {material : MaterialId}
+-    (evidence : MaterialsShareEvidence material) (terms : MaterialsTerms) (charge : MaterialsCharge)
+-    (firstActualUse : Moment) (record : MaterialsTransferRecord material)
+-    (allocation : MaterialsAllocation material) : Prop :=
+-  let effectiveAt := record.transfer.effectiveAt
+-  let shareTime := if evidence.shortfall.isNone ∧ ¬ evidence.chargeEstablishedAt.before effectiveAt
+-    then firstActualUse
+-    else terms.ordinaryShareTime material charge.place firstActualUse evidence.originalSettlementAt
+-  evidence.allocationAt terms charge.place shareTime effectiveAt allocation
+-
+-/-- Gross portions under this transfer, including each holder's own earlier collections. -/
+-def MaterialsShareEvidence.transferPortionsAt {material : MaterialId}
+-    (evidence : MaterialsShareEvidence material) (terms : MaterialsTerms) (use : VerifiedMaterialsUse)
+-    (charge : MaterialsCharge) (firstActualUse : Moment) (shareBase : Amount)
+-    (record : MaterialsTransferRecord material) (gross : ActorId → Amount) : Prop :=
+-  let historicalShares := fun point ↦ evidence.allocationAt terms charge.place point point
+-  let alreadySettled := evidence.chargeEstablishedAt.before record.transfer.effectiveAt
+-  let collected := if evidence.shortfall.isSome = true ∨ alreadySettled then
+-    evidence.collectionsAtTransfer record use.lesson.id charge.place else []
+-  let totalCollected := sumAmounts collected MaterialsCollection.amount
+-  let divides := fun allocation : MaterialsAllocation material ↦ fun base ↦
+-    allocation.agreementReference ≠ "" ∧ allocation.distributesCharge charge.place base ∧
+-    ∀ holder, gross holder =
+-      sumAmountsWhere collected (fun receipt ↦ receipt.holder == holder) MaterialsCollection.amount +
+-        allocation.portion holder charge.place base
+-  record.authorised evidence.sparkDao historicalShares ∧
+-  record.transfer.effectiveAt.by evidence.entitlementVerifiedAt ∧
+-  (∀ receipt ∈ collected, 0 ≤ receipt.amount ∧
+-    evidence.originalSettlementAt.by receipt.collectedAt ∧
+-    receipt.collectedAt.before record.transfer.effectiveAt) ∧
+-  totalCollected ≤ shareBase ∧
+-  match evidence.shortfall with
+-  | some _ => divides record.transfer.laterShortfall (shareBase - totalCollected)
+-  | none =>
+-    if alreadySettled then
+-      divides record.transfer.settledUncollected (shareBase - totalCollected)
+-    else
+-      ∃ allocation,
+-        record.transfer.priorUnsettledAllocation firstActualUse
+-          (fun point ↦ evidence.allocationAt terms charge.place point record.transfer.effectiveAt)
+-          allocation ∧
+-        divides allocation shareBase
+-
+-/-- This transfer can move the covered amount only within its named pair and towards its recipient. -/
+-def MaterialsTransfer.reallocates {material : MaterialId} (transfer : MaterialsTransfer material)
+-    (prior next : ActorId → Amount) : Prop :=
+-  let source := transfer.transferor
+-  let destination := transfer.transferee
+-  source ≠ destination ∧
+-  (∀ holder, ¬(holder = source ∨ holder = destination) → next holder = prior holder) ∧
+-  next source ≤ prior source ∧ next source + next destination = prior source + prior destination
+-
+-def MaterialsTransfer.applyPair {material : MaterialId} (transfer : MaterialsTransfer material)
+-    (prior next : ActorId → Amount) (holder : ActorId) : Amount :=
+-  if holder = transfer.transferor ∨ holder = transfer.transferee then next holder else prior holder
+-
+-/-- Read a sequence of signed allocations, checking each against the preceding gross amounts. -/
+-def MaterialsShareEvidence.transferredInOrder {material : MaterialId}
+-    (evidence : MaterialsShareEvidence material) (terms : MaterialsTerms) (use : VerifiedMaterialsUse)
+-    (charge : MaterialsCharge) (firstActualUse : Moment) (shareBase : Amount) (holder : ActorId) :
+-    List (MaterialsTransferRecord material) → Option (Moment × (ActorId → Amount)) →
+-      (ActorId → Amount) → Amount → Prop
+-  | [], _, prior, portion => portion = prior holder
+-  | record :: rest, group, prior, portion =>
+-    let effectiveAt := record.transfer.effectiveAt
+-    -- Disjoint transfers at the same effective time use one opening allocation.
+-    let opening := match group with
+-      | some (time, gross) => if time = effectiveAt then gross else prior
+-      | none => prior
+-    ∃ next, evidence.transferPortionsAt terms use charge firstActualUse shareBase record next ∧
+-      record.transfer.reallocates opening next ∧
+-      evidence.transferredInOrder terms use charge firstActualUse shareBase holder rest
+-        (some (effectiveAt, opening)) (record.transfer.applyPair prior next) portion
+-
+-/-- Apply disjoint transfers against the original basis or strictly ordered transfers whose
+-    signed amounts agree with each preceding allocation outside the named pair. -/
+-def MaterialsShareEvidence.composedPortionAt {material : MaterialId}
+-    (evidence : MaterialsShareEvidence material) (terms : MaterialsTerms) (use : VerifiedMaterialsUse)
+-    (charge : MaterialsCharge) (firstActualUse postingAt : Moment) (shareBase : Amount)
+-    (original : ActorId → Amount) (holder : ActorId) (portion : Amount) : Prop :=
+-  let applicable := evidence.transferApplies use charge.place postingAt
+-  let party := fun (record : MaterialsTransferRecord material) (actor : ActorId) ↦
+-    actor = record.transfer.transferor ∨ actor = record.transfer.transferee
+-  let independent :=
+-    ∃ gross : MaterialsTransferRecord material → ActorId → Amount,
+-      (∀ record ∈ evidence.transfers, applicable record →
+-        (∀ other ∈ evidence.transfers, applicable other →
+-          (∃ actor, party record actor ∧ party other actor) → other = record) ∧
+-        evidence.transferPortionsAt terms use charge firstActualUse shareBase record (gross record) ∧
+-        record.transfer.reallocates original (gross record)) ∧
+-      (((∀ record ∈ evidence.transfers, applicable record → ¬ party record holder) ∧
+-          portion = original holder) ∨
+-        ∃ record ∈ evidence.transfers, applicable record ∧ party record holder ∧
+-          portion = gross record holder)
+-  let sequential :=
+-    ∃ ordered : List (MaterialsTransferRecord material),
+-      (∀ record, record ∈ ordered ↔ record ∈ evidence.transfers ∧ applicable record) ∧
+-      ordered.Pairwise (fun earlier later ↦
+-        earlier.transfer.effectiveAt.before later.transfer.effectiveAt ∨
+-        (earlier.transfer.effectiveAt = later.transfer.effectiveAt ∧
+-          ¬ ∃ actor, party earlier actor ∧ party later actor)) ∧
+-      evidence.transferredInOrder terms use charge firstActualUse shareBase holder
+-        ordered none original portion
+-  ∃ first ∈ evidence.transfers, applicable first ∧
+-    ∃ second ∈ evidence.transfers, applicable second ∧ second ≠ first ∧
+-      (independent ∨ sequential)
+-
+ def MaterialsShareEvidence.portionAt {material : MaterialId}
+     (evidence : MaterialsShareEvidence material) (terms : MaterialsTerms) (use : VerifiedMaterialsUse)
+     (charge : MaterialsCharge) (firstActualUse postingAt : Moment) (holder : ActorId)
+     (portion : Amount) : Prop :=
+-  let shareBase : Amount := match evidence.shortfall with
++  let shareBase := match evidence.shortfall with
+     | none => charge.amount
+-    | some shortfall =>
+-      sumAmountsWhere shortfall.charges (·.place == charge.place) (·.amount)
+-  let shareTime := terms.ordinaryShareTime material charge.place firstActualUse
+-    evidence.originalSettlementAt
+-  let originalBasis := evidence.allocationAt terms charge.place shareTime postingAt
++    | some shortfall => max 0 (charge.amount - shortfall.originallySettledCharge charge.place)
++  let divides := fun allocation : MaterialsAllocation material ↦ fun base collected ↦
++    allocation.agreementReference ≠ "" ∧ allocation.distributesCharge charge.place base ∧
++    portion = collected + allocation.portion holder charge.place base
+   let applicable := evidence.transferApplies use charge.place postingAt
++  let historicalShares := fun point ↦ evidence.allocationAt terms charge.place point point
+   (match evidence.shortfall with
+     | none => True
+-    | some _ => 0 ≤ shareBase) ∧
++    | some shortfall => 0 ≤ shortfall.originallySettledCharge charge.place) ∧
+   (((∀ record ∈ evidence.transfers, ¬ applicable record) ∧
+-    ∃ allocation, originalBasis allocation ∧ allocation.agreementReference ≠ "" ∧
+-      allocation.distributesCharge charge.place shareBase ∧
+-      portion = allocation.portion holder charge.place shareBase) ∨
++    let shareTime := terms.ordinaryShareTime material charge.place firstActualUse
++      evidence.originalSettlementAt
++    ∃ allocation, evidence.allocationAt terms charge.place shareTime postingAt allocation ∧
++      divides allocation shareBase 0) ∨
+   (∃ record ∈ evidence.transfers, applicable record ∧
++    record.authorised evidence.sparkDao historicalShares ∧
+     (∀ other ∈ evidence.transfers, applicable other → other = record) ∧
+-    ∃ allocation, evidence.transferBasisAt terms charge firstActualUse record allocation ∧
+-      allocation.agreementReference ≠ "" ∧ allocation.distributesCharge charge.place shareBase ∧
+-    ∃ gross, evidence.transferPortionsAt terms use charge firstActualUse shareBase record gross ∧
+-      record.transfer.reallocates (fun actor ↦ allocation.portion actor charge.place shareBase) gross ∧
+-      portion = gross holder) ∨
+-  (∃ allocation, originalBasis allocation ∧ allocation.agreementReference ≠ "" ∧
+-    allocation.distributesCharge charge.place shareBase ∧
+-    evidence.composedPortionAt terms use charge firstActualUse postingAt shareBase
+-      (fun actor ↦ allocation.portion actor charge.place shareBase) holder portion))
++    record.transfer.effectiveAt.by evidence.entitlementVerifiedAt ∧
++    let alreadySettled := evidence.chargeEstablishedAt.before record.transfer.effectiveAt
++    let collected := if evidence.shortfall.isSome = true ∨ alreadySettled then
++      evidence.collectionsAtTransfer record use.lesson.id charge.place else []
++    let totalCollected := sumAmounts collected MaterialsCollection.amount
++    (∀ receipt ∈ collected, 0 ≤ receipt.amount ∧
++      evidence.originalSettlementAt.by receipt.collectedAt ∧
++      receipt.collectedAt.before record.transfer.effectiveAt) ∧
++    totalCollected ≤ shareBase ∧
++    let retained := sumAmounts (collected.filter (fun receipt ↦ receipt.holder == holder))
++      MaterialsCollection.amount
++    match evidence.shortfall with
++    | some _ => divides record.transfer.laterShortfall (shareBase - totalCollected) retained
++    | none =>
++      if alreadySettled then
++        divides record.transfer.settledUncollected (shareBase - totalCollected) retained
++      else
++        ∃ allocation,
++          record.transfer.priorUnsettledAllocation firstActualUse historicalShares allocation ∧
++          divides allocation shareBase 0))
+ 
+ /-- Calculate the holder's payable share from verified use and the applicable historical terms. -/
+ def MaterialsShareEvidence.eligibleAt {material : MaterialId}
+     (evidence : MaterialsShareEvidence material) (use : VerifiedMaterialsUse)
+     (terms : MaterialsTerms) (original : MaterialsSettlementRecord)
+-    (holder : ActorId) (amount : Amount) (postingAt : Moment)
+-    (knownAt : Moment := postingAt)
+-    (useBasisVerified : Prop := terms.calculatesVerifiedUse use evidence.advanceCheck
+-      ((evidence.shortfall.map MaterialsShortfall.identifiedAt).getD
+-        evidence.originalSettlementAt))
+-    (shortfalls : List MaterialsShortfall := []) (principal : MaterialsPrincipalContext := {}) :
+-    Prop :=
++    (holder : ActorId) (amount : Amount) (postingAt : Moment) : Prop :=
+   let charges := use.chargesFor terms material
+   original.lesson = use.lesson.id ∧ original.material = material ∧
+   original.termsReference = terms.agreementReference ∧
+@@ -808,23 +558,20 @@
+   (∀ row ∈ charges, row.place ∈ original.places) ∧
+   use.endedAt.before evidence.originalSettlementAt ∧
+   evidence.originalSettlementAt.by evidence.entitlementVerifiedAt ∧
+-  evidence.chargeEstablishedAt.by postingAt ∧
+-  postingAt.by knownAt ∧ evidence.entitlementVerifiedAt.by knownAt ∧
++  evidence.entitlementVerifiedAt.by postingAt ∧
+   (match evidence.shortfall with
+     | none => original.charges = charges
+     | some shortfall =>
+-      shortfall ∈ shortfalls ∧
+-      shortfall.charges = shortfall.newCharges original shortfalls charges principal use.findings ∧
+-      (∀ other ∈ shortfalls, other.belongsTo original = true →
+-        other.identifiedAt = shortfall.identifiedAt →
+-        shortfall.addsToPlaceCoveredBy other → other = shortfall) ∧
++      (∀ place, shortfall.originallySettledCharge place =
++        sumAmounts (original.charges.filter (fun row ↦ row.place == place)) MaterialsCharge.amount) ∧
+       shortfall.lesson = use.lesson.id ∧ shortfall.material = material ∧
+       shortfall.termsReference = terms.agreementReference ∧
+       shortfall.originalSettlementReference = evidence.originalSettlementReference ∧
+       shortfall.reference ≠ "" ∧
+       evidence.originalSettlementAt.before shortfall.identifiedAt ∧
+       shortfall.identifiedAt.by evidence.entitlementVerifiedAt) ∧
+-  useBasisVerified ∧
++  terms.calculatesVerifiedUse use evidence.advanceCheck
++    ((evidence.shortfall.map MaterialsShortfall.identifiedAt).getD evidence.originalSettlementAt) ∧
+   ∃ firstActualUse, use.firstConfirmedUse material = some firstActualUse ∧
+     ∃ portions : PlaceId → Amount,
+       (∀ charge ∈ charges, evidence.portionAt terms use charge firstActualUse
+--- a/SourceV14/Operations.lean
++++ b/SourceV14/Operations.lean
+@@ -179,7 +179,7 @@
+     ((ev.teachingBegan = some start ∧ ∃ agreedPay, f.absentGroupPlacePay = some agreedPay ∧
+         groupAbsenceAmounts f.lesson f.place facts fee agreedPay record.feePayable record.tutorPay) ∨
+       (oneToOneAbsenceHalfFee f.lesson f.place facts ∧ reason.applies f facts query ∧
+-        ev.retainsOneToOneAbsence f s start query facts ∧
++        ev.verifiedOneToOneAbsenceAt = some start ∧
+         record.feePayable = absenceCustomerFee fee ∧
+         ∃ tutor reference normalFee terms,
+           EffectiveTutorAgreementAt f ev start tutor reference normalFee terms ∧
+@@ -198,29 +198,25 @@
+   amount : Amount
+ 
+ def earlierOutstanding (p : Place) (ledger : List CreditPosting)
+-    (earlier : List EarlierFeeRefund) (trigger : Moment)
+-    (otherPrincipals : List (ObligationId × Amount) := []) : Amount :=
+-  sumAmounts (earlier.map (fun old ↦ (old.id, old.amount)) ++ otherPrincipals)
+-    (fun (refund, amount) ↦ refundBalanceDue p ledger trigger amount (some refund))
++    (earlier : List EarlierFeeRefund) (trigger : Moment) : Amount :=
++  sumAmounts earlier (fun old ↦ refundBalanceDue p ledger trigger old.amount (some old.id))
+ 
+ def EarlierFeeRefundsFor (p : Place) (before : Moment) (refunds : List EarlierFeeRefund) : Prop :=
+   (refunds.map (·.id)).Nodup ∧
+   ∀ old ∈ refunds,
+     old.lesson = p.lesson ∧ old.place = p.id ∧ old.trigger.before before ∧ 0 ≤ old.amount
+ 
+-/-- Compute the newly due reduction in the original fee. Credit on an earlier refund
+-    counts toward that refund's principal, and its unpaid portion remains due separately. -/
++/-- Bringing the same original fee down to a reduced final fee cannot return the
++    same excess twice. Receipts on other refunds reduce the room left on that fee;
++    receipts on this refund separately discharge its own remaining balance. -/
+ def feeAdjustmentRefundPrincipal (place : Place) (ledger : List CreditPosting)
+     (atTime : Moment) (refund : ObligationId) (gross : Amount)
+-    (earlier : List EarlierFeeRefund) (otherPrincipals : List (ObligationId × Amount) := []) : Amount :=
++    (earlier : List EarlierFeeRefund) : Amount :=
+   let prior := ledger.filter (fun entry ↦ decide (entry.point.before atTime))
++  let receivedForOtherRefunds :=
++    creditsRestoredFor place prior atTime - creditsRestoredFor place prior atTime (some refund)
+   let otherDebts := earlier.filter (fun old ↦ old.id != refund)
+-  let otherPrincipals := otherPrincipals.filter (fun row ↦ row.1 != refund)
+-  let known := otherDebts.map (fun old ↦ (old.id, old.amount)) ++ otherPrincipals
+-  let receivedForOtherRefunds := creditsAppliedToLessonRefunds place prior atTime known -
+-    creditsRestoredFor place prior atTime (some refund)
+-  additionalRefundDue gross receivedForOtherRefunds
+-    (earlierOutstanding place prior otherDebts atTime otherPrincipals)
++  additionalRefundDue gross receivedForOtherRefunds (earlierOutstanding place prior otherDebts atTime)
+ 
+ /-- The excess actually restored for a verified absence uses that seat's original account. -/
+ def AbsenceRefundReceived (f : PartOne) (ev : StartEvidence) (s : Schedule)
+@@ -354,10 +350,9 @@
+     noRemedyAgreedRefundTrigger (fault.lessonWithResponsibleTutor f.lesson) f.place fault outstanding remedies evidence requests
+       trigger query trigger ∧
+     outstandingRefundFee f.place evidence.teaching outstanding remedies evidence trigger fee
+-  | .failedDelivery claimed =>
+-    ∃ progress ∈ remedies, progress.agreement = claimed.agreement ∧
+-      failedAcceptedRemedyRefund (fault.lessonWithResponsibleTutor f.lesson)
+-        f.place fault progress evidence query trigger fee
++  | .failedDelivery progress =>
++    progress ∈ remedies ∧
++    failedAcceptedRemedyRefund (fault.lessonWithResponsibleTutor f.lesson) f.place fault progress evidence query trigger fee
+   | .madeGood separate =>
+     separateMadeGoodRefund (fault.lessonWithResponsibleTutor f.lesson) f.place fault separate remedies evidence query trigger fee
+ 
+@@ -409,22 +404,17 @@
+ /-- For a correction of the same obligation, exclude that obligation from the
+     earlier amounts. Its own retained receipts are deducted once at settlement. -/
+ def FaultRefundCase.assessedAmount (c : FaultRefundCase) (trigger : Moment)
+-    (effectiveFee : Amount) (correcting : Option ObligationId)
+-    (otherPrincipals : List (ObligationId × Amount) := []) : Amount :=
++    (effectiveFee : Amount) (correcting : Option ObligationId) : Amount :=
+   let f := c.form
+   let others := c.establishedEarlier.filter (fun row ↦ correcting != some row.id)
+-  let otherPrincipals := otherPrincipals.filter (fun row ↦ correcting != some row.1)
+-  let known := others.map (fun old ↦ (old.id, old.amount)) ++ otherPrincipals
+   let gross := grossLessonCreditRestoration (debitTotal f.place c.ledger trigger) effectiveFee
+   let priorRestored := if effectiveFee = 0 then
+-    creditsAppliedToLessonRefunds f.place c.ledger trigger known -
++    creditsRestoredFor f.place c.ledger trigger -
+       (match correcting with
+       | none => 0
+       | some id => creditsRestoredFor f.place c.ledger trigger (some id))
+-  else sumAmounts known (fun (refund, amount) ↦ min amount
+-    (creditsRestoredFor f.place c.ledger trigger (some refund)))
+-  additionalRefundDue gross priorRestored
+-    (earlierOutstanding f.place c.ledger others trigger otherPrincipals)
++  else sumAmounts others (fun old ↦ creditsRestoredFor f.place c.ledger trigger (some old.id))
++  additionalRefundDue gross priorRestored (earlierOutstanding f.place c.ledger others trigger)
+ 
+ def FaultRefundCase.newObligationAt (c : FaultRefundCase) (trigger : Moment) : Prop :=
+   (∀ old ∈ c.establishedEarlier, old.id ≠ c.obligation) ∧
+@@ -433,8 +423,7 @@
+     trigger.before entry.point
+ 
+ def FaultRefundCase.amountDue (c : FaultRefundCase) (query trigger agreedDue due : Moment)
+-    (legalDeadline : Option Moment) (effectiveFee amount : Amount)
+-    (otherPrincipals : List (ObligationId × Amount) := []) : Prop :=
++    (legalDeadline : Option Moment) (effectiveFee amount : Amount) : Prop :=
+   let f := c.form
+   f.matches ∧
+   FaultDecisionWhenRequired c.fault c.disputed c.authority c.decisions f query ∧
+@@ -455,7 +444,7 @@
+   PaymentDeadline.fromRefundTrigger f.deadlines.refund.latestExecution c.refundEvents trigger agreedDue ∧
+   due = refundDeadline agreedDue legalDeadline ∧
+   EarlierFeeRefundsFor f.place trigger c.establishedEarlier ∧
+-  amount = c.assessedAmount trigger effectiveFee none otherPrincipals
++  amount = c.assessedAmount trigger effectiveFee none
+ 
+ /-- Fulfilment is separate from a timely obligation. Late valid receipts still count. -/
+ def FaultRefundCase.restores (c : FaultRefundCase) (posting : CreditPosting)
+@@ -470,16 +459,14 @@
+     (trigger agreedDue due : Moment) (legalDeadline : Option Moment) (refund : Amount)
+     (settlement : LessonSettlement) (termsAndLawPermitClosure : Prop)
+     (closure : FullRefundClosure) : Prop :=
+-  let principals := (c.obligation, refund) :: c.establishedEarlier.map (fun old ↦ (old.id, old.amount))
+   c.amountDue closure.closedAt trigger agreedDue due legalDeadline 0 refund ∧
+   c.cause.assess c.form c.fault c.lessonEvidence c.acceptanceEvent
+     { lesson := c.fault.lessonWithResponsibleTutor c.form.lesson, fault := c.fault, ledger := c.ledger, teaching := c.teaching,
+       ownsAccount := c.ownsAccount, closed := c.closed, feeAt := c.lessonEvidence.feeAt c.form }
+     c.remedies c.requests closure.closedAt trigger 0 ∧
+   settlement.matchesPaymentHistory c.form.place c.ledger closure.closedAt ∧
+-  RefundPrincipalsRestored c.form.place c.ledger closure.closedAt principals ∧
+-  closedByFullRefund c.form.place c.ledger c.remedies c.benefits settlement.debited
+-    (sumAmounts principals Prod.snd) settlement.feePayable termsAndLawPermitClosure closure
++  closedByFullRefund c.form.place c.ledger c.remedies c.benefits settlement.debited settlement.restored
++    settlement.feePayable termsAndLawPermitClosure closure
+ 
+ /-- A tutor deduction uses the original signed lesson and the authorised fault decision. -/
+ structure TutorFaultDecisionEvidence where
+@@ -599,27 +586,13 @@
+   history.payments.recipientReceived part.recipient paid ∧ route.allows a facts history part schedule conditions paid.instruction ∧
+   (match route with
+   | .ordinary _ =>
+-    (∃ releasedAt, history.paymentReleasedAt a facts part.ref releasedAt paid.instruction.atTime ∧
++    (∃ releasedAt, history.paymentReleasedAt a facts part.ref releasedAt ∧
+       releasedAt.by paid.instruction.atTime) →
+       ∃ row ∈ afterLift, row.paid = paid ∧ route.recordMatches row ∧
+         row.approvalArrangementRecorded a facts history part ∧ postLiftPaymentRecordConforms a facts history part schedule row
+   | .liftOriginal .. | .liftReplacement .. | .liftFirst .. =>
+     ∃ row ∈ afterLift, row.paid = paid ∧ route.recordMatches row ∧
+       row.approvalArrangementRecorded a facts history part ∧ postLiftPaymentRecordConforms a facts history part schedule row)
+-
+-/-- A retained approval and actual receipt can be filed after a missed deadline.
+-    This records what was received; it grants no permission to execute. -/
+-def PaymentApprovalRoute.observedPayment (route : PaymentApprovalRoute) (a : ReviewAuthorities)
+-    (facts : HoldFacts) (history : HoldHistory) (part : PaymentPart) (paid : PostedPayment) : Prop :=
+-  let approval := match route with
+-    | .ordinary grant | .liftOriginal grant _ | .liftFirst grant _ => grant
+-    | .liftReplacement _ grant _ => grant
+-  (history.factsAt facts paid.instruction.atTime).isCanonicalPart part ∧
+-  history.approvalRecorded approval ∧
+-  approval.authorisedAtGrant a ∧ approval.grantedAt.by paid.instruction.atTime ∧
+-  approval.originallyCovered part ∧
+-  history.payments.actualPaymentWithEvidence paid ∧ history.payments.recipientReceived part.recipient paid ∧
+-  history.payments.validOutstandingPayment part paid.instruction
+ 
+ /-- Resolve the applicable form term from the same verified lift. -/
+ def PostLiftCutoffMatches (terms : DeadlineTerms) (history : HoldHistory)
+@@ -649,24 +622,22 @@
+       paymentMeetsApplicableDeadlines a facts history part row.schedule
+         (some row.releasedAt) paid) ∧
+   ∀ releasedAt, releasedAt.by paid.instruction.atTime →
+-    postLiftPromptPaymentDue a facts history part schedule releasedAt paid.instruction.atTime →
++    postLiftPromptPaymentDue a facts history part schedule releasedAt →
+     ∃ row ∈ afterLift, matchesSchedule row ∧ row.releasedAt = releasedAt ∧
+       history.metDeadline row.schedule.postLiftDeadline releasedAt paid.instruction.atTime
+ 
+ /-- A timely receipt and timely completion of the full payable portion are separate checks. -/
+ def FiledPaymentCompletedOnTime (f : PartOne) (a : ReviewAuthorities) (facts : HoldFacts)
+     (history : HoldHistory) (part : PaymentPart) (schedule : PaymentSchedule)
+-    (afterLift : List PostLiftPaymentRecord) (through : Moment := schedule.originalExecutionDeadline) :
+-    Prop :=
++    (afterLift : List PostLiftPaymentRecord) : Prop :=
+   let matchesSchedule := FiledReleaseMatches f a facts history part schedule
+-  (paymentCompletedByApplicableDeadlines a facts history part schedule none through ∨
++  (paymentCompletedByApplicableDeadlines a facts history part schedule none ∨
+     ∃ row ∈ afterLift, matchesSchedule row ∧
+-      paymentCompletedByApplicableDeadlines a facts history part row.schedule (some row.releasedAt)
+-        through) ∧
+-  ∀ releasedAt, postLiftPromptPaymentDue a facts history part schedule releasedAt through →
++      paymentCompletedByApplicableDeadlines a facts history part row.schedule (some row.releasedAt)) ∧
++  ∀ releasedAt, postLiftPromptPaymentDue a facts history part schedule releasedAt →
+     ∃ row ∈ afterLift, matchesSchedule row ∧ row.releasedAt = releasedAt ∧
+       history.resolvesDeadline row.schedule.postLiftDeadline releasedAt ∧
+-      history.fullyRetainedPortionBy part row.schedule.postLiftDeadline.cutoff through
++      history.payments.fullyRetainedBy part row.schedule.postLiftDeadline.cutoff
+ 
+ /-- Common filing requirements for credit restored to the original lesson account. -/
+ def LessonRefundFiled (f : PartOne) (a : ReviewAuthorities) (facts : HoldFacts)
+@@ -849,29 +820,17 @@
+ 
+ /-- The coordinator files one account for this lesson and place (§4.3). -/
+ structure FiledLessonAccount where
+-  lesson : LessonId
+-  place : PlaceId
+-  account : AccountId
++  amounts : LessonSettlement
+   filedBy : ActorId
+   filedAt : Moment
+-  settlementEvidence : Option EvidenceRef
+-  feePayable : Option Amount
+-  debited : Amount
+-  /-- The total assessed for each refund before deducting actual receipts. -/
+-  refunds : List (ObligationId × Option Amount)
+-  creditDueBack : Option Amount
+-  restored : Amount
+-  tutorPay : Option Amount
+-  materialShare : Amount
+-  materialsPending : Bool
+-  deriving DecidableEq, Repr
++  settlementEvidence : EvidenceRef
+ 
+ def FiledLessonAccount.matches (file : FiledLessonAccount) (form : PartOne)
+-    (ledger : List CreditPosting) : Prop :=
+-  form.matches ∧ form.confirmedAt.by file.filedAt ∧ file.filedBy = form.lesson.coordinator ∧
+-  file.lesson = form.lesson.id ∧ file.place = form.place.id ∧ file.account = form.place.account ∧
+-  file.debited = debitTotal form.place ledger file.filedAt ∧
+-  file.restored = creditsRestoredFor form.place ledger file.filedAt
++    (ledger : List CreditPosting) (recordedAmounts : EvidenceRef → Option LessonSettlement)
++    (observed : Moment) : Prop :=
++  form.matches ∧ file.filedBy = form.lesson.coordinator ∧ file.filedAt.by observed ∧
++  recordedAmounts file.settlementEvidence = some file.amounts ∧
++  file.amounts.matchesPaymentHistory form.place ledger file.filedAt
+ 
+ /-- Verified amounts individually determined at settlement under the teaching agreement.
+     A class-wide total is formed from the place records before applying the deduction. -/
+@@ -936,13 +895,12 @@
+   EffectiveSchedule f.lesson ev scheduleUsed actualStart ∧ actualStart.by settledAt ∧
+   (ev.teachingBegan = some actualStart ∨
+     (ev.teachingBegan = none ∧ next.completedAt = none ∧ next.completedForSparkDAO = false ∧
+-      ∃ facts reason, basis.absenceWithoutTeaching = some (actualStart, facts, reason) ∧
+-      ev.retainsOneToOneAbsence f scheduleUsed actualStart settledAt facts ∧
+-      CanStart f.lesson ev scheduleUsed actualStart ∧ reason.applies f facts settledAt ∧
+-      (oneToOneAbsenceUsesChangeTerms f.lesson f.place facts ∨
+-        (oneToOneAbsenceHalfFee f.lesson f.place facts ∧
+-          ∃ row ∈ basis.paymentsByPlace, row.place = f.place.id ∧
+-            row.tutorPay = next.lesson.normalTutorFee / 2))))
++      ev.verifiedOneToOneAbsenceAt = some actualStart ∧ ∃ facts reason,
++      basis.absenceWithoutTeaching = some (actualStart, facts, reason) ∧
++      CanStart f.lesson ev scheduleUsed actualStart ∧
++      oneToOneAbsenceHalfFee f.lesson f.place facts ∧ reason.applies f facts settledAt ∧
++      ∃ row ∈ basis.paymentsByPlace, row.place = f.place.id ∧
++        row.tutorPay = next.lesson.normalTutorFee / 2))
+ 
+ /-- A zero settlement is recorded without inventing a payment or a receipt. -/
+ def ZeroTutorSettlementRecorded (f : PartOne) (ev : StartEvidence) (scheduleUsed : Schedule)
+@@ -1001,9 +959,7 @@
+   ev.rosterFormsAt f.lesson settledAt settledRoster settledForms ∧
+   facts.groupSettlementScopeMatches f.lesson (settledForms.map (·.place)) ∧
+   (∀ pf ∈ settledForms, part.ref ∈ basis.tutorPartsForPlace pf.place.id →
+-    FeeHoldTermsMatch pf facts ∧
+-    (¬FeeOnHold history a facts pf.place instruction.atTime ∨
+-      approval.observedPayment a facts history part record)) ∧
++    FeeHoldTermsMatch pf facts ∧ ¬FeeOnHold history a facts pf.place instruction.atTime) ∧
+   basis.debtsReferenced f.lesson agreed.tutor instruction.atTime ∧
+   basis.nowIndependentlyPayable part.ref ∧ HoldFacts.matchesForm facts f part.ref ∧
+   tutorTerms.due.appliesForLesson f.lesson ev instruction.atTime agreed.dueTrigger schedule.dueAt ∧
+@@ -1014,9 +970,7 @@
+     (∀ pf ∈ settledForms, ∃ row ∈ basis.paymentsByPlace, row.place = pf.place.id) ∧
+     TutorAmountsForSettlement completionHistory next faults deductions agreedFee netPay ∧
+     (f.lesson.kind = .group → ∀ pf ∈ settledForms,
+-      FeeHoldTermsMatch pf facts ∧
+-    (¬FeeOnHold history a facts pf.place instruction.atTime ∨
+-      approval.observedPayment a facts history part record)) ∧
++      FeeHoldTermsMatch pf facts ∧ ¬FeeOnHold history a facts pf.place instruction.atTime) ∧
+     facts.coversPurpose f.lesson.id (.tutorPay agreed.tutor) part.recipient netPay ∧
+     instruction.amount ≤ history.payments.remainingPurposeBefore f.lesson.id
+       (.tutorPay agreed.tutor) part.recipient netPay instruction.atTime) ∨
+@@ -1032,11 +986,10 @@
+     schedule.originalExecutionDeadline ∧
+   postLiftTermMatches f.deadlines.postLiftPay schedule ∧
+   settledAt.by instruction.atTime ∧
+-  (approval.filedPayment a facts history part schedule
++  approval.filedPayment a facts history part schedule
+     (fun entry ↦ settledAt.by entry.atTime ∧ additionalAgreedConditions entry ∧
+       (ClockBoundary.reachedAfter ev.clockBoundaries clockBase thirtyDays entry.atTime ∨
+-        ∃ earlier ∈ schedule.legalDeadline, applicableLawRequiresEarlierPayment earlier)) record afterLift ∨
+-    approval.observedPayment a facts history part record) ∧
++        ∃ earlier ∈ schedule.legalDeadline, applicableLawRequiresEarlierPayment earlier)) record afterLift ∧
+   (onTime ↔ FiledPaymentOnTime f a facts history part schedule record afterLift) ∧
+   (completedOnTime ↔ FiledPaymentCompletedOnTime f a facts history part schedule afterLift)
+ 
+@@ -1092,9 +1045,7 @@
+ def MaterialsPaymentPosted (f : PartOne) (ev : StartEvidence)
+     (use : VerifiedMaterialsUse) (terms : MaterialsTerms)
+     (material : MaterialId) (holder : ActorId) (evidence : MaterialsShareEvidence material)
+-    -- These are retained records of obligations established under the adopted terms.
+     (original : MaterialsSettlementRecord) (settled : List MaterialsSettlementRecord)
+-    (shortfalls : List MaterialsShortfall)
+     (pendingHistory : List PendingMaterialsShare) (earlierFunding : List PendingMaterialsFundingRecord)
+     (provisionPerformed : Prop) (amount : Amount) (agreedRecipient : Option ActorId)
+     (earlierRecipients : ActorId → Moment → Option ActorId) (part : PaymentPart)
+@@ -1103,18 +1054,11 @@
+     (dueTrigger executionTrigger : Option PaymentTrigger)
+     (applicablePayConditions : PaymentInstruction → Prop)
+     (afterLift : List PostLiftPaymentRecord) (onTime completedOnTime : Prop)
+-    (funds : CurrentLessonFunds) (knownAt : Moment := record.instruction.atTime)
+-    (observed : Bool := false)
+-    (useBasisVerified : Prop := terms.calculatesVerifiedUse use evidence.advanceCheck
+-      ((evidence.shortfall.map MaterialsShortfall.identifiedAt).getD
+-        evidence.originalSettlementAt))
+-    (principal : MaterialsPrincipalContext := {}) : Prop :=
++    (funds : CurrentLessonFunds) : Prop :=
+   let instruction := record.instruction
+-  let obligation := (evidence.shortfall.map MaterialsShortfall.obligation).getD original.obligation
+-  let purposeFor := fun payee ↦ match evidence.shortfall with
+-    | none => PaymentPurpose.materialsShare material payee
+-    | some shortfall => PaymentPurpose.materialsShortfall material payee shortfall.reference
+-  let purpose := purposeFor holder
++  let purpose := match evidence.shortfall with
++    | none => PaymentPurpose.materialsShare material holder
++    | some _ => PaymentPurpose.materialsShortfall material holder evidence.originalSettlementReference
+   (∃ roster forms, ev.rosterFormsAt f.lesson instruction.atTime roster forms ∧ f ∈ forms ∧
+     ∀ place ∈ use.places, use.materialsAt place.id ≠ [] →
+       ∃ pf ∈ forms, pf.place = place ∧ pf.lesson = f.lesson ∧
+@@ -1125,24 +1069,15 @@
+   ev.teachingBegan = some use.startedAt ∧ ev.teachingEnded = some use.endedAt ∧
+   f.materialsOrBundle = some terms.materialsOrBundle ∧
+   (∀ feedback ∈ use.deliveryReports, feedback ∈ ev.afterLesson.serviceFeedback) ∧
++  funds.validFor use.lesson ∧ funds.checkedAt = instruction.atTime ∧ funds.covers instruction.amount ∧
+   f.materialsTermsRef = some terms.agreementReference ∧
+   f.materialsPayer = some terms.accountingAndPaymentParty ∧
+   original ∈ settled ∧
+   (∀ other ∈ settled, other.lesson = original.lesson → other.material = material →
+-    (other.obligation = original.obligation ∨ (other.termsReference = original.termsReference ∧
+-      (other.reference = original.reference ∨ ∃ place ∈ original.places, place ∈ other.places))) →
++    other.termsReference = original.termsReference →
++    (other.reference = original.reference ∨ ∃ place ∈ original.places, place ∈ other.places) →
+     other = original) ∧
+-  evidence.eligibleAt use terms original holder amount instruction.atTime knownAt useBasisVerified
+-    shortfalls principal ∧
+-  (match evidence.shortfall with
+-    | none => True
+-    | some shortfall =>
+-      ∀ other ∈ shortfalls, other.lesson = shortfall.lesson →
+-        other.material = shortfall.material → other.reference = shortfall.reference →
+-        (other.obligation = shortfall.obligation ∨
+-          (other.termsReference = shortfall.termsReference ∧
+-            other.originalSettlementReference = shortfall.originalSettlementReference)) →
+-        other = shortfall) ∧
++  evidence.eligibleAt use terms original holder amount instruction.atTime ∧
+   (provisionPerformed ↔ ∀ prior ∈ pendingHistory,
+     prior.resolvedBy original evidence.entitlementVerifiedAt →
+     prior.status.provisionRequired →
+@@ -1158,16 +1093,18 @@
+   schedule.dueAt = terms.paymentDue ∧ schedule.originalExecutionDeadline = terms.paymentDeadline ∧
+   postLiftTermMatches f.deadlines.postLiftPay schedule ∧ HoldFacts.matchesForm facts f part.ref ∧
+   part.ref.lesson = use.lesson.id ∧ part.ref.purpose = purpose ∧
+-  part.ref.obligation = obligation ∧ part.recipient = .person holder agreedRecipient ∧
++  part.recipient = .person holder agreedRecipient ∧
+   evidence.collectionsMatch use terms instruction.atTime (fun priorHolder point ↦
+-    history.payments.receivedForObligationBefore use.lesson.id obligation
+-      (.person priorHolder (earlierRecipients priorHolder point)) point (some (purposeFor priorHolder))) ∧
+-  facts.coversObligation part.ref part.recipient amount ∧
+-  instruction.amount ≤ history.payments.remainingObligationBefore use.lesson.id obligation
+-    part.recipient amount instruction.atTime (some purpose) ∧
+-  (funds.validFor use.lesson ∧ funds.checkedAt = instruction.atTime ∧ funds.covers instruction.amount ∧
+-    approval.filedPayment authority facts history part schedule applicablePayConditions record afterLift ∨
+-    (observed = true ∧ approval.observedPayment authority facts history part record)) ∧
++    let priorPurpose := match evidence.shortfall with
++      | none => PaymentPurpose.materialsShare material priorHolder
++      | some _ => PaymentPurpose.materialsShortfall material priorHolder
++          evidence.originalSettlementReference
++    history.payments.receivedForPurposeBefore use.lesson.id priorPurpose
++      (.person priorHolder (earlierRecipients priorHolder point)) point) ∧
++  facts.coversPurpose use.lesson.id purpose part.recipient amount ∧
++  instruction.amount ≤ history.payments.remainingPurposeBefore use.lesson.id
++    purpose part.recipient amount instruction.atTime ∧
++  approval.filedPayment authority facts history part schedule applicablePayConditions record afterLift ∧
+   (onTime ↔ FiledPaymentOnTime f authority facts history part schedule record afterLift) ∧
+   (completedOnTime ↔ FiledPaymentCompletedOnTime f authority facts history part schedule afterLift)
+ 
+@@ -1411,9 +1348,7 @@
+     (couldNotProvide : ReviewFinding → PlaceId → Prop) (correction : PaymentCorrectionCase)
+     (records : DecisionRecords) (outcomes : List RecordedSettlementOutcome)
+     (amountRecords : EvidenceRef → Option PaymentPart) (history : PaymentHistory)
+-    (earlier : List EarlierFeeRefund) (originalRefund : RefundRecord)
+-    (originalPrincipal : Amount := correction.originalPart.amount)
+-    (correctedPrincipal : Amount := correction.money.corrected.amount) : Prop :=
++    (earlier : List EarlierFeeRefund) (originalRefund : RefundRecord) : Prop :=
+   (∃ roster forms, ev.rosterFormsAt f.lesson previousAt roster forms ∧ f ∈ forms) ∧
+   (∃ old ∈ outcomes, old.outcome = correction.correction.originalOutcome ∧
+     old.matter.sameCase correction.finding.matter ∧ old.decidedAt = previousAt) ∧
+@@ -1432,11 +1367,11 @@
+   originalRefund.basis = .absence ∧ originalRefund.lesson = f.lesson.id ∧
+   originalRefund.place = f.place.id ∧ originalRefund.account = f.place.account ∧
+   originalRefund.finalFee = previous.feePayable ∧
+-  originalPrincipal = originalRefund.amount ∧
++  correction.originalPart.amount = originalRefund.amount ∧
+   correction.money.corrected.recipient = .lessonRefund f.place.account ∧
+-  correctedPrincipal = feeAdjustmentRefundPrincipal f.place ev.ledger correction.finding.decidedAt
++  correction.money.corrected.amount = feeAdjustmentRefundPrincipal f.place ev.ledger correction.finding.decidedAt
+     correction.money.corrected.ref.obligation revised.creditDueBack earlier ∧
+-  correction.retained f.lesson records.authorities records.appointments outcomes amountRecords history
++  correction.recorded f.lesson records.authorities records.appointments outcomes amountRecords history
+ 
+ /-- Recompute corrected tutor pay from the same settled amounts, actual completion
+     record and fixed deductions used for ordinary tutor settlement. -/
+@@ -1476,21 +1411,8 @@
+       (∀ form ∈ forms, part.ref ∈ amounts.settlement.tutorPartsForPlace form.place.id →
+         FeeHoldTermsMatch form facts ∧ ¬FeeOnHold history authority facts form.place paidAt)))
+ 
+-/-- A corrected payout requires funds, a retained approval and a clear hold scope at payment. -/
+-def CorrectedPaymentAuthorised (f : PartOne) (c : PaymentCorrectionCase) (part : PaymentPart)
+-    (payment : CorrectionPaymentRecord) (history : HoldHistory) (credits : List CreditPosting)
+-    (authority : ReviewAuthorities) (funds : CurrentLessonFunds) (facts : HoldFacts)
+-    (approval : PaymentApprovalRoute) (schedule : PaymentSchedule)
+-    (agreedConditions : PaymentInstruction → Prop) (afterLift : List PostLiftPaymentRecord)
+-    (scope : CorrectedMonetaryScope) (otherPrincipals : List (ObligationId × Amount) := []) : Prop :=
+-  let instruction := payment.paid.instruction
+-  c.additionalPaymentPosted f.lesson history.payments credits (some f.place) payment scope
+-    otherPrincipals ∧
+-    funds.validFor f.lesson ∧ funds.checkedAt = instruction.atTime ∧
+-    funds.covers instruction.amount ∧
+-    approval.filedPayment authority facts history part schedule agreedConditions payment.paid afterLift
+-
+-/-- File an evidenced receipt and its actual timing under an adopted correction. -/
++/-- A correction pays only what is newly established and still owed.
++    Actual transfers remain visible in the ledger even if authorisation or funding is defective. -/
+ def CorrectedPaymentPosted (f : PartOne) (ev : StartEvidence) (c : PaymentCorrectionCase)
+     (part : PaymentPart) (applicable : PaymentTerms)
+     (settledAbsence : Option (Moment × AbsenceFacts × AbsenceReasonEvidence))
+@@ -1500,23 +1422,19 @@
+     (reviewedUnavailable : ReviewFinding → PlaceId → Prop)
+     (earlierGroupRefunds : List EarlierFeeRefund)
+     (reviewedTutorAmounts : Option TutorCorrectionAmounts)
+-    (retainedRefund : PaymentPartRef → Option RefundRecord)
+-    (retainedNoFault : Option (Moment × Moment))
+-    (payment : CorrectionPaymentRecord) (history : HoldHistory) (credits : List CreditPosting)
++    (retainedRefund : PaymentPartRef → Option RefundRecord) (payment : CorrectionPaymentRecord) (history : HoldHistory) (credits : List CreditPosting)
+     (review : DecisionRecords) (outcomes : List RecordedSettlementOutcome)
+-    (monetaryOutcome : EvidenceRef → Option PaymentPart) (facts : HoldFacts)
+-    (schedule : PaymentSchedule) (afterLift : List PostLiftPaymentRecord)
+-    (dueTrigger executionTrigger : Option PaymentTrigger) (onTime completedOnTime : Prop)
+-    (scope : CorrectedMonetaryScope) (adoptedMaterials : Option MaterialsTerms := none) : Prop :=
++    (monetaryOutcome : EvidenceRef → Option PaymentPart) (funds : CurrentLessonFunds)
++    (facts : HoldFacts) (approval : PaymentApprovalRoute) (schedule : PaymentSchedule)
++    (agreedConditions : PaymentInstruction → Prop) (afterLift : List PostLiftPaymentRecord)
++    (dueTrigger executionTrigger : Option PaymentTrigger) (onTime completedOnTime : Prop) : Prop :=
+   let instruction := payment.paid.instruction
+   let reviewedFault := fun fault : FaultBasis ↦
+     ∃ row ∈ review.faultOutcomes, row.place = f.place.id ∧
+       row.decision = .review c.finding ∧ row.disposition = .fault fault
+-  let noFaultFiling := fun trigger due : Moment ↦
+-    (retainedNoFault = some (trigger, due) ∨
+-      ∃ old, retainedRefund c.originalPart.ref = some old ∧ old.basis = .noFaultCancellation ∧
+-        old.lesson = f.lesson.id ∧ old.place = f.place.id ∧ old.account = f.place.account ∧
+-        old.trigger = trigger ∧ old.due = due) ∧
++  let noFaultFiling := fun old : RefundRecord ↦
++    retainedRefund c.originalPart.ref = some old ∧ old.basis = .noFaultCancellation ∧
++    old.lesson = f.lesson.id ∧ old.place = f.place.id ∧ old.account = f.place.account ∧
+     ¬∃ fault, reviewedFault fault
+   let datesMatch := fun terms : PaymentTerms ↦
+     terms.due.appliesForLesson f.lesson ev instruction.atTime dueTrigger schedule.dueAt ∧
+@@ -1528,23 +1446,22 @@
+   f.matches ∧ reviewFindingRecordedConforms review.authorities (some f.contacts.reviewer)
+     review.appointments review.initialFindings review.reviewFindings c.finding ∧
+   history.temporarySettersRecorded review.authorities facts c.finding.matter c.finding.decidedAt ∧
+-  c.retained f.lesson review.authorities review.appointments outcomes
+-    monetaryOutcome history.payments scope.selected.prior ∧
++  c.recorded f.lesson review.authorities review.appointments outcomes
++    monetaryOutcome history.payments ∧
+   (∀ fault : FaultBasis, c.money.corrected.ref.purpose = .lessonRefund f.place.id →
+     reviewedFault fault →
+     ∃ assessed ∈ reviewedRefund,
+-      assessed.matches f fault c.finding review credits
+-        { c.money.corrected with amount := scope.reviewedPrincipal } schedule) ∧
++      assessed.matches f fault c.finding review credits c.money.corrected schedule) ∧
+   (∀ old, retainedRefund c.originalPart.ref = some old → old.basis = .absence →
+     f.lesson.kind = .group → reviewedUnavailable c.finding f.place.id →
+     ∃ assessment ∈ reviewedGroupAbsence,
+       GroupAbsenceCorrectionRecorded f ev assessment.1 assessment.2.1 assessment.2.2
+         reviewedFee reviewedUnavailable c review outcomes monetaryOutcome history.payments
+-          earlierGroupRefunds old scope.previousPrincipal scope.reviewedPrincipal) ∧
+-  (c.additionalPaymentPosted f.lesson history.payments credits (some f.place) payment scope ∨
+-    c.observedRefundPosted f.place history.payments credits payment) ∧
++          earlierGroupRefunds old) ∧
++  c.additionalPaymentPosted f.lesson history.payments credits (some f.place) payment ∧
+   part.ref = instruction.part ∧ part.recipient = c.money.corrected.recipient ∧
+-  part.amount = c.money.corrected.amount ∧
++  facts.coversObligation part.ref part.recipient c.money.corrected.amount ∧
++  funds.validFor f.lesson ∧ funds.checkedAt = instruction.atTime ∧ funds.covers instruction.amount ∧
+   HoldFacts.matchesForm facts f part.ref ∧
+   (match part.ref.purpose with
+     | .tutorPay tutor =>
+@@ -1554,12 +1471,12 @@
+           c.money.corrected.amount = 0) ∧
+       ∃ claimedAt reference fee,
+       (ev.teachingBegan = some claimedAt ∨
+-        (ev.teachingBegan = none ∧ ∃ absent reason,
++        (ev.teachingBegan = none ∧ ev.verifiedOneToOneAbsenceAt = some claimedAt ∧
++          ∃ absent reason,
+           settledAbsence = some (claimedAt, absent, reason) ∧
+           oneToOneAbsenceHalfFee f.lesson f.place absent ∧
+           ∃ old ∈ outcomes, old.outcome = c.correction.originalOutcome ∧
+             old.matter.sameCase c.finding.matter ∧ claimedAt.by old.decidedAt ∧
+-            (∃ schedule, ev.retainsOneToOneAbsence f schedule claimedAt old.decidedAt absent) ∧
+             reason.applies f absent old.decidedAt)) ∧
+       EffectiveTutorAgreementAt f ev claimedAt tutor reference fee applicable
+         instruction.atTime instruction.atTime ∧
+@@ -1569,34 +1486,19 @@
+           review.authorities original.decidedAt instruction.atTime) ∧
+       datesMatch applicable
+     | .lessonRefund _ =>
+-      ((∃ trigger due, noFaultFiling trigger due ∧ applicable = f.deadlines.noFaultRefundTerms ∧
++      ((∃ old, noFaultFiling old ∧ applicable = f.deadlines.noFaultRefundTerms ∧
+         noFaultRefundDeadline f ev applicable.due dueTrigger.toList
+-          trigger instruction.atTime schedule.dueAt ∧
++          old.trigger instruction.atTime schedule.dueAt ∧
+         noFaultRefundDeadline f ev applicable.latestExecution executionTrigger.toList
+-          trigger instruction.atTime schedule.originalExecutionDeadline ∧
+-        (refundDeadline schedule.originalExecutionDeadline schedule.legalDeadline).by due) ∨
+-      ((¬∃ trigger due, noFaultFiling trigger due) ∧
+-        applicable = f.deadlines.refund ∧ datesMatch applicable))
+-    | .materialsShare material _ | .materialsShortfall material _ _ =>
+-      applicable = f.deadlines.materialsShares ∧
+-      if c.changesMaterialsCreditor then
+-        ∃ adopted ∈ adoptedMaterials, adopted.adoptedFor f.lesson ∧
+-          adopted.agreedAt.by instruction.atTime ∧ adopted.pricing.covers material ∧
+-          f.materialsOrBundle = some adopted.materialsOrBundle ∧
+-          f.materialsTermsRef = some adopted.agreementReference ∧
+-          f.materialsPayer = some adopted.accountingAndPaymentParty ∧
+-          schedule.dueAt = adopted.paymentDue ∧
+-          schedule.originalExecutionDeadline = adopted.paymentDeadline ∧
+-          MaterialDeadlineMatches applicable.due f ev instruction.atTime
+-            dueTrigger adopted.paymentDue ∧
+-          MaterialDeadlineMatches applicable.latestExecution f ev instruction.atTime
+-            executionTrigger adopted.paymentDeadline
+-      else datesMatch applicable
++          old.trigger instruction.atTime schedule.originalExecutionDeadline ∧
++        (refundDeadline schedule.originalExecutionDeadline schedule.legalDeadline).by old.due) ∨
++      ((¬∃ old, noFaultFiling old) ∧ applicable = f.deadlines.refund ∧ datesMatch applicable))
+     | _ => applicable = applicablePaymentTerms f part.ref.purpose ∧ datesMatch applicable) ∧
+   postLiftTermMatches f.deadlines.postLiftPay schedule ∧
++  approval.filedPayment review.authorities facts history part schedule
++    agreedConditions payment.paid afterLift ∧
+   (onTime ↔ FiledPaymentOnTime f review.authorities facts history part schedule payment.paid afterLift) ∧
+-  (completedOnTime ↔ FiledPaymentCompletedOnTime f review.authorities facts history part schedule
+-    afterLift instruction.atTime)
++  (completedOnTime ↔ FiledPaymentCompletedOnTime f review.authorities facts history part schedule afterLift)
+ 
+ /-- The investigation is recorded whether or not the account ultimately supports fault. -/
+ structure TutorInvestigation where
+@@ -1695,30 +1597,28 @@
+ def ReviewedRefundFundingChecked (f : PartOne) (c : PaymentCorrectionCase)
+     (review : DecisionRecords) (outcomes : List RecordedSettlementOutcome)
+     (monetaryOutcome : EvidenceRef → Option PaymentPart) (history : PaymentHistory)
+-    (credits : List CreditPosting) (funds : CurrentLessonFunds) (covered : Prop)
+-    (scope : CorrectedMonetaryScope) : Prop :=
++    (credits : List CreditPosting) (funds : CurrentLessonFunds) (covered : Prop) : Prop :=
+   f.matches ∧ c.money.corrected.ref.purpose = .lessonRefund f.place.id ∧
+   c.money.corrected.recipient = .lessonRefund f.place.account ∧
+   reviewFindingRecordedConforms review.authorities (some f.contacts.reviewer)
+     review.appointments review.initialFindings review.reviewFindings c.finding ∧
+-  c.retained f.lesson review.authorities review.appointments outcomes monetaryOutcome history ∧
++  c.recorded f.lesson review.authorities review.appointments outcomes monetaryOutcome history ∧
+   c.finding.decidedAt.by funds.checkedAt ∧ funds.validFor f.lesson ∧
+   ∃ outstanding, c.money.outstandingBefore history credits (some f.place)
+-      funds.checkedAt outstanding scope ∧ (covered ↔ funds.covers outstanding)
++      funds.checkedAt outstanding ∧ (covered ↔ funds.covers outstanding)
+ 
+ /-- §6.3 shortage is measured against the recorded corrected outstanding obligation. -/
+ def CorrectionShortfallRecorded (f : PartOne) (c : PaymentCorrectionCase) (funds : CurrentLessonFunds)
+     (review : DecisionRecords) (outcomes : List RecordedSettlementOutcome)
+     (monetaryOutcome : EvidenceRef → Option PaymentPart) (history : PaymentHistory)
+     (credits : List CreditPosting) (notice : CorrectionShortageNotice)
+-    (refundOwedTo : Place → ActorId → Prop) (scope : CorrectedMonetaryScope) : Prop :=
++    (refundOwedTo : Place → ActorId → Prop) : Prop :=
+   f.matches ∧ reviewFindingRecordedConforms review.authorities (some f.contacts.reviewer)
+     review.appointments review.initialFindings review.reviewFindings c.finding ∧
+-  c.retained f.lesson review.authorities review.appointments outcomes monetaryOutcome history
+-    scope.selected.prior ∧
++  c.recorded f.lesson review.authorities review.appointments outcomes monetaryOutcome history ∧
+   funds.validFor f.lesson ∧
+   correctionShortageNoticeConforms c f.lesson history credits (some f.place)
+-    funds.checkedAt refundOwedTo notice scope ∧
++    funds.checkedAt refundOwedTo notice ∧
+   ¬funds.covers notice.outstanding
+ 
+ def AssessedFaultRefund.fulfilledBy (assessment : AssessedFaultRefund)
+@@ -1966,8 +1866,7 @@
+ 
+ def AgreedChangeSettlementRecorded (f : PartOne) (ev : StartEvidence) (query : Moment)
+     (cancellation : Option CancellationRequest) (reschedule : Option AgreedScheduleChange)
+-    (absence : Option (AbsenceFacts × AbsenceReasonEvidence)) (assessment : AgreedChangeAssessment)
+-    (settlement : LessonSettlement)
++    (absence : Option AbsenceFacts) (reason : AbsenceReasonEvidence) (assessment : AgreedChangeAssessment) (settlement : LessonSettlement)
+     (handler : Handler) (assignment : SettlementAssignment) (holds : HoldHistory)
+     (holdFacts : HoldFacts) : Prop :=
+   (∃ roster forms, ev.rosterFormsAt f.lesson query roster forms ∧ f ∈ forms) ∧
+@@ -1978,9 +1877,8 @@
+   ((∃ request ∈ cancellation, request.point.by query ∧ CanCancelOneToOne f request ev) ∨
+     (∃ change ∈ reschedule, change ∈ ev.changes ∧ change.allowed f.lesson ev ∧
+       EffectiveSchedule f.lesson ev change.record.nextSchedule query) ∨
+-    (∃ entry ∈ absence, oneToOneAbsenceUsesChangeTerms f.lesson f.place entry.1 ∧
+-      entry.2.applies f entry.1 query ∧
+-      ∃ schedule start, ev.retainsOneToOneAbsence f schedule start query entry.1)) ∧
++    (∃ facts ∈ absence, oneToOneAbsenceUsesChangeTerms f.lesson f.place facts ∧
++      reason.applies f facts query)) ∧
+   assessment.termsReference = f.cancelChangeTerms ∧ assessment.verifiedUnderApplicableTerms ∧
+   settlement.matchesPaymentHistory f.place ev.ledger query ∧
+   settlement.feePayable = assessment.finalFee ∧ settlement.tutorPay = assessment.tutorPay ∧
+--- a/SourceV14/Review.lean
++++ b/SourceV14/Review.lean
+@@ -1,7 +1,7 @@
+ import SourceV14.Settlement
+ 
+ /-!
+-Direct translation of the locked v1.5 English rules §§6.1–6.6 and the review and
++Direct translation of the locked v1.4 English rules §§6.1–6.6 and the review and
+ post-lift records on the companion confirmation form.
+ -/
+ 
+@@ -31,23 +31,6 @@
+   portion : Nat
+   purpose : PaymentPurpose := .other
+   deriving DecidableEq, Repr
+-
+-def PaymentPartRef.sameObligation (a b : PaymentPartRef) : Bool :=
+-  a.lesson == b.lesson && a.obligation == b.obligation && a.purpose == b.purpose
+-
+-def PaymentPurpose.isMaterialsShare : PaymentPurpose → Bool
+-  | .materialsShare .. | .materialsShortfall .. => true
+-  | _ => false
+-
+-/-- Candidate references for the same claim. A creditor change still needs the exact
+-retained original and reviewed parts. Ordinary payment references keep the holder. -/
+-def PaymentPartRef.sameCorrectionClaim (a b : PaymentPartRef) : Bool :=
+-  a.lesson == b.lesson && a.obligation == b.obligation &&
+-    match a.purpose, b.purpose with
+-    | .materialsShare material _, .materialsShare other _ => material == other
+-    | .materialsShortfall material _ claim, .materialsShortfall other _ otherClaim =>
+-      material == other && claim == otherClaim
+-    | purpose, otherPurpose => purpose == otherPurpose
+ 
+ structure ReviewMatter where
+   id : ConcernId
+@@ -464,11 +447,6 @@
+   | lessonRefund (debitedAccount : AccountId)
+   deriving DecidableEq, Repr
+ 
+-def PaymentRecipient.samePayee : PaymentRecipient → PaymentRecipient → Bool
+-  | .person a _, .person b _ => a == b
+-  | .lessonRefund a, .lessonRefund b => a == b
+-  | _, _ => false
+-
+ inductive PaymentDestination where
+   | person (person : ActorId)
+   | account (account : AccountId)
+@@ -488,14 +466,6 @@
+   recipient : PaymentRecipient
+   amount : Amount
+   deriving DecidableEq, Repr
+-
+-def PaymentPart.matchesMaterialsCreditor (part : PaymentPart) : Bool :=
+-  match part.ref.purpose with
+-  | .materialsShare _ holder | .materialsShortfall _ holder _ =>
+-    match part.recipient with
+-    | .person payee _ => payee == holder
+-    | .lessonRefund _ => false
+-  | _ => true
+ 
+ /-- The terms of the attempted or executed payment, shared by permissions and receipts. -/
+ structure PaymentInstruction where
+@@ -564,35 +534,35 @@
+ 
+ def PostedPayment.retainedAmountBefore (p : PostedPayment) (returned : List ReturnedPayment)
+     (time : Moment) : Amount :=
+-  let returnedAmount := sumAmountsWhere returned (fun r ↦
++  let effectiveReturns := returned.filter (fun r ↦
+     decide (r.paidReceipt = p.id ∧ p.instruction.atTime.before r.returnedAt ∧
+-      r.returnedAt.before time ∧ 0 < r.amount)) ReturnedPayment.amount
+-  max 0 (p.instruction.amount - returnedAmount)
++      r.returnedAt.before time ∧ 0 < r.amount))
++  max 0 (p.instruction.amount - sumAmounts effectiveReturns ReturnedPayment.amount)
+ 
+ def PaymentHistory.receivedForPartBefore (h : PaymentHistory) (part : PaymentPartRef)
+     (recipient : PaymentRecipient) (time : Moment) : Amount :=
+-  sumAmountsWhere h.posted (fun p ↦ decide (p.instruction.part = part ∧
++  let effectiveReceipts := h.posted.filter (fun p ↦ decide (p.instruction.part = part ∧
+     h.recipientReceived recipient p ∧ p.instruction.atTime.before time))
+-    (fun p ↦ p.retainedAmountBefore h.returned time)
++  sumAmounts effectiveReceipts (fun p ↦ p.retainedAmountBefore h.returned time)
+ 
+ def PaymentHistory.receivedForObligationBefore (h : PaymentHistory) (lesson : LessonId)
+     (obligation : ObligationId) (recipient : PaymentRecipient) (time : Moment)
+     (purpose : Option PaymentPurpose := none) : Amount :=
+-  sumAmountsWhere h.posted (fun p ↦ decide (p.instruction.part.lesson = lesson ∧
++  let effectiveReceipts := h.posted.filter (fun p ↦ decide (p.instruction.part.lesson = lesson ∧
+     p.instruction.part.obligation = obligation ∧
+     (purpose.isNone = true ∨ purpose = some p.instruction.part.purpose) ∧
+     h.recipientReceived recipient p ∧
+     p.instruction.atTime.before time))
+-    (fun p ↦ p.retainedAmountBefore h.returned time)
++  sumAmounts effectiveReceipts (fun p ↦ p.retainedAmountBefore h.returned time)
+ 
+ /-- Actual retained receipts for an established payment purpose, across its portions. -/
+ def PaymentHistory.receivedForPurposeBefore (history : PaymentHistory) (lesson : LessonId)
+     (purpose : PaymentPurpose) (recipient : PaymentRecipient)
+     (time : Moment) : Amount :=
+-  sumAmountsWhere history.posted (fun p ↦ decide
++  let actual := history.posted.filter (fun p ↦ decide
+     (p.instruction.part.lesson = lesson ∧ p.instruction.part.purpose = purpose ∧
+       history.recipientReceived recipient p ∧ p.instruction.atTime.before time))
+-    (fun p ↦ p.retainedAmountBefore history.returned time)
++  sumAmounts actual (fun p ↦ p.retainedAmountBefore history.returned time)
+ 
+ def PaymentHistory.remainingPurposeBefore (history : PaymentHistory) (lesson : LessonId)
+     (purpose : PaymentPurpose) (recipient : PaymentRecipient) (amount : Amount)
+@@ -665,24 +635,13 @@
+   actualReceipts : List PostedPayment
+   deriving DecidableEq, Repr
+ 
+-def MonetaryCorrection.matchesReceipt (c : MonetaryCorrection) (p : PostedPayment)
+-    (prior : List PaymentPartRef := []) : Prop :=
+-  p.instruction.part.lesson = c.corrected.ref.lesson ∧
+-    p.instruction.part.obligation = c.corrected.ref.obligation ∧
+-    (if prior.contains p.instruction.part then True
+-      else p.instruction.part.purpose = c.corrected.ref.purpose) ∧
+-    p.instruction.atTime.by c.reviewedAt
+-
+-/-- The receipts recorded with the correction are still present in the payment ledger. -/
+-def correctionActualPaymentsRetained (h : PaymentHistory) (c : MonetaryCorrection)
+-    (prior : List PaymentPartRef := []) : Prop :=
++def correctionActualPaymentsRecorded (h : PaymentHistory) (c : MonetaryCorrection) : Prop :=
+   h.distinctReceipts ∧ h.validReturns ∧ (c.actualReceipts.map PostedPayment.id).Nodup ∧
+-    ∀ p ∈ c.actualReceipts, p ∈ h.posted ∧ c.matchesReceipt p prior
+-
+-def correctionActualPaymentsRecorded (h : PaymentHistory) (c : MonetaryCorrection)
+-    (prior : List PaymentPartRef := []) : Prop :=
+-  correctionActualPaymentsRetained h c prior ∧
+-    ∀ p ∈ h.posted, c.matchesReceipt p prior → p ∈ c.actualReceipts
++    ∀ p, p ∈ c.actualReceipts ↔
++      (p ∈ h.posted ∧ p.instruction.part.lesson = c.corrected.ref.lesson ∧
++        p.instruction.part.obligation = c.corrected.ref.obligation ∧
++        p.instruction.part.purpose = c.corrected.ref.purpose ∧
++        p.instruction.atTime.by c.reviewedAt)
+ 
+ /-- The reviewed amount belongs to the original liability and to the adopted outcome. -/
+ structure PaymentCorrectionCase where
+@@ -692,122 +651,36 @@
+   money : MonetaryCorrection
+   deriving DecidableEq, Repr
+ 
+-def PaymentCorrectionCase.changesMaterialsCreditor (c : PaymentCorrectionCase) : Bool :=
+-  c.originalPart.ref.purpose.isMaterialsShare &&
+-    c.originalPart.ref.purpose != c.money.corrected.ref.purpose
+-
+-def PaymentCorrectionCase.priorMaterialsRefs (c : PaymentCorrectionCase)
+-    (prior : List PaymentPart) : List PaymentPartRef :=
+-  if c.money.corrected.ref.purpose.isMaterialsShare then (c.originalPart :: prior).map (·.ref)
+-  else []
+-
+-def PaymentCorrectionCase.outcomeConforms (c : PaymentCorrectionCase) (l : Lesson)
++def PaymentCorrectionCase.recorded (c : PaymentCorrectionCase) (l : Lesson)
+     (a : ReviewAuthorities) (appointments : List ReviewAppointment)
+-    (outcomes : List RecordedSettlementOutcome) (monetaryOutcome : EvidenceRef → Option PaymentPart) :
+-    Prop :=
++    (outcomes : List RecordedSettlementOutcome) (monetaryOutcome : EvidenceRef → Option PaymentPart)
++    (history : PaymentHistory) : Prop :=
+   correctionAfterReviewConforms l a appointments outcomes c.finding c.correction ∧
+     monetaryOutcome c.correction.originalOutcome = some c.originalPart ∧
+     monetaryOutcome c.finding.outcome = some c.money.corrected ∧
+     c.money.reviewedAt = c.finding.decidedAt ∧ c.money.corrected.ref.lesson = l.id ∧
+-    c.originalPart.ref.sameCorrectionClaim c.money.corrected.ref = true ∧
+-    c.originalPart.matchesMaterialsCreditor = true ∧
+-    c.money.corrected.matchesMaterialsCreditor = true ∧
+-    0 ≤ c.money.corrected.amount
+-
+-def PaymentCorrectionCase.recorded (c : PaymentCorrectionCase) (l : Lesson)
+-    (a : ReviewAuthorities) (appointments : List ReviewAppointment)
+-    (outcomes : List RecordedSettlementOutcome) (monetaryOutcome : EvidenceRef → Option PaymentPart)
+-    (history : PaymentHistory) (prior : List PaymentPart := []) : Prop :=
+-  c.outcomeConforms l a appointments outcomes monetaryOutcome ∧
+-    correctionActualPaymentsRecorded history c.money (c.priorMaterialsRefs prior)
+-
+-/-- Reuse an adopted correction as later ledger entries become available. -/
+-def PaymentCorrectionCase.retained (c : PaymentCorrectionCase) (l : Lesson)
+-    (a : ReviewAuthorities) (appointments : List ReviewAppointment)
+-    (outcomes : List RecordedSettlementOutcome) (monetaryOutcome : EvidenceRef → Option PaymentPart)
+-    (history : PaymentHistory) (prior : List PaymentPart := []) : Prop :=
+-  c.outcomeConforms l a appointments outcomes monetaryOutcome ∧
+-    correctionActualPaymentsRetained history c.money (c.priorMaterialsRefs prior)
++    c.money.corrected.ref.lesson = c.originalPart.ref.lesson ∧
++    c.money.corrected.ref.purpose = c.originalPart.ref.purpose ∧
++    c.money.corrected.ref.obligation = c.originalPart.ref.obligation ∧
++    0 ≤ c.money.corrected.amount ∧ correctionActualPaymentsRecorded history c.money
+ 
+ def MonetaryCorrection.misdirectedReceipts (c : MonetaryCorrection) (h : PaymentHistory) :
+     List PostedPayment :=
+   c.actualReceipts.filter (fun paid ↦ decide (¬h.recipientReceived c.corrected.recipient paid))
+ 
+-structure CorrectedPortion where
+-  part : PaymentPart
+-  prior : List PaymentPart
+-  deriving DecidableEq, Repr
+-
+-def CorrectedPortion.refs (portion : CorrectedPortion) : List PaymentPartRef :=
+-  (portion.part.ref :: portion.prior.map (·.ref)).eraseDups
+-
+-structure CorrectedMonetaryScope where
+-  selected : CorrectedPortion
+-  portions : List CorrectedPortion
+-  previousPrincipal : Amount
+-  reviewedPrincipal : Amount
+-  deriving DecidableEq, Repr
+-
+-def CorrectedMonetaryScope.principal (scope : CorrectedMonetaryScope) : Amount :=
+-  sumAmountsWhere scope.portions (fun portion ↦
+-    portion.part.ref.sameObligation scope.selected.part.ref &&
+-      portion.part.recipient.samePayee scope.selected.part.recipient) (·.part.amount)
+-
+-/-- A materials receipt follows its own revised portion if there is a retained allocation.
+-For an unallocated reference, only the unchanged obligation and creditor can match. -/
+-def CorrectedMonetaryScope.matchesMaterialsReceipt (scope : CorrectedMonetaryScope)
+-    (ref : PaymentPartRef) : Bool :=
+-  let part := scope.selected.part
+-  match scope.portions.find? (fun portion ↦ portion.refs.contains ref) with
+-  | some portion =>
+-    portion.part.ref.sameObligation part.ref && portion.part.recipient.samePayee part.recipient
+-  | none => part.ref.sameObligation ref
+-
+ /-- The refund balance uses credit actually restored to the original debit account. -/
+ def MonetaryCorrection.outstandingBefore (c : MonetaryCorrection) (history : PaymentHistory)
+     (credits : List Booking.CreditPosting) (refundPlace : Option Place)
+-    (time : Moment) (outstanding : Amount) (scope : CorrectedMonetaryScope) : Prop :=
++    (time : Moment) (outstanding : Amount) : Prop :=
+   let part := c.corrected
+-  let principal := scope.principal
+   match part.recipient with
+-  | .person _ _ =>
+-    if part.ref.purpose.isMaterialsShare then
+-      let received := sumAmountsWhere history.posted (fun paid ↦
+-        scope.matchesMaterialsReceipt paid.instruction.part &&
+-          decide (history.recipientReceived part.recipient paid ∧ paid.instruction.atTime.before time))
+-        (fun paid ↦ paid.retainedAmountBefore history.returned time)
+-      outstanding = max 0 (principal - received)
+-    else outstanding = history.remainingObligationBefore part.ref.lesson
+-      part.ref.obligation part.recipient principal time (some part.ref.purpose)
++  | .person _ _ => outstanding = history.remainingObligationBefore part.ref.lesson
++      part.ref.obligation part.recipient part.amount time (some part.ref.purpose)
+   | .lessonRefund account =>
+       ∃ p ∈ refundPlace, part.ref.lesson = p.lesson ∧ part.ref.purpose = .lessonRefund p.id ∧
+         p.account = account ∧ outstanding = Settlement.refundBalanceDue p
+           (credits.filter (fun entry ↦ decide (entry.point.before time))) time
+-          principal (some part.ref.obligation)
+-
+-/-- Only an evidenced receipt with a reference in this portion's lineage can discharge it.
+-The obligation balance separately counts all receipts to its payee. -/
+-def CorrectedPortion.outstandingBefore (portion : CorrectedPortion) (history : PaymentHistory)
+-    (credits : List Booking.CreditPosting) (refundPlace : Option Place) (time : Moment) :
+-    Amount :=
+-  let part := portion.part
+-  let refs := portion.refs
+-  match part.recipient, refundPlace with
+-  | .person _ _, _ =>
+-    max 0 (part.amount - sumAmounts refs (fun ref ↦
+-      history.receivedForPartBefore ref part.recipient time))
+-  | .lessonRefund account, some place =>
+-    let relevant := credits.filter fun credit ↦
+-      decide (credit.point.before time) &&
+-        match credit.kind with
+-        | .lessonRefund .. => history.posted.any fun receipt ↦
+-          refs.contains receipt.instruction.part && decide
+-            (receipt.id = credit.id ∧ receipt.instruction.destination = .account account ∧
+-              credit.account = account ∧ receipt.instruction.atTime = credit.point ∧
+-              receipt.instruction.amount = credit.amount ∧ receipt.evidence.isSome = true)
+-        | _ => true
+-    Settlement.refundBalanceDue place relevant time part.amount (some part.ref.obligation)
+-  | .lessonRefund _, none => 0
++          part.amount (some part.ref.obligation)
+ 
+ structure CorrectionPaymentRecord where
+   correction : EvidenceRef
+@@ -818,40 +691,22 @@
+ /-- A separate actual payment discharges only the remaining corrected liability. -/
+ def PaymentCorrectionCase.additionalPaymentPosted (c : PaymentCorrectionCase) (l : Lesson)
+     (history : PaymentHistory) (credits : List Booking.CreditPosting) (refundPlace : Option Place)
+-    (record : CorrectionPaymentRecord) (scope : CorrectedMonetaryScope)
+-    (otherPrincipals : List (ObligationId × Amount) := []) : Prop :=
++    (record : CorrectionPaymentRecord) : Prop :=
+   let paid := record.paid.instruction
+   let corrected := c.money.corrected
+-  record.correction = c.correction.correction ∧ c.finding.decidedAt.by paid.atTime ∧
+-    paid.part.lesson = l.id ∧ paid.part = corrected.ref ∧
+-    corrected.recipient.accepts paid.destination ∧
++  record.correction = c.correction.correction ∧ c.correction.recordedAt.by paid.atTime ∧
++    paid.part.lesson = l.id ∧ paid.part.obligation = corrected.ref.obligation ∧
++    paid.part.purpose = corrected.ref.purpose ∧ corrected.recipient.accepts paid.destination ∧
+     0 < paid.amount ∧ history.actualPaymentWithEvidence record.paid ∧
+     history.recipientReceived corrected.recipient record.paid ∧
+-    (∃ outstanding, c.money.outstandingBefore history credits refundPlace paid.atTime
+-      outstanding scope ∧
++    (∃ outstanding, c.money.outstandingBefore history credits refundPlace paid.atTime outstanding ∧
+       paid.amount ≤ outstanding) ∧
+-    paid.amount ≤ scope.selected.outstandingBefore history credits refundPlace paid.atTime ∧
+     match corrected.recipient with
+     | .person _ _ => record.refundCredit = none
+     | .lessonRefund _ =>
+       ∃ p ∈ refundPlace, ∃ credit ∈ record.refundCredit,
+         credit.id = record.paid.id ∧ credit.point = paid.atTime ∧ credit.amount = paid.amount ∧
+-        Settlement.ValidLessonRefund p credits credit corrected.ref.obligation scope.principal false
+-          otherPrincipals
+-
+-/-- Record the actual credit received for this corrected refund on its original account. -/
+-def PaymentCorrectionCase.observedRefundPosted (c : PaymentCorrectionCase) (p : Place)
+-    (history : PaymentHistory) (credits : List Booking.CreditPosting)
+-    (record : CorrectionPaymentRecord) : Prop :=
+-  let paid := record.paid.instruction
+-  let corrected := c.money.corrected
+-  record.correction = c.correction.correction ∧ c.finding.decidedAt.by paid.atTime ∧
+-  paid.part = corrected.ref ∧ paid.part.lesson = p.lesson ∧ paid.part.purpose = .lessonRefund p.id ∧
+-  corrected.recipient = .lessonRefund p.account ∧ paid.destination = .account p.account ∧
+-  history.actualPaymentWithEvidence record.paid ∧ history.distinctReceipts ∧ history.validReturns ∧
+-  ∃ credit ∈ record.refundCredit,
+-    Settlement.LessonRefundPostingMatches p credits credit corrected.ref.obligation ∧
+-    credit.id = record.paid.id ∧ credit.point = paid.atTime ∧ credit.amount = paid.amount
++        Settlement.ValidLessonRefund p credits credit corrected.ref.obligation corrected.amount false
+ 
+ structure RecoveryDecision where
+   matter : ReviewMatter
+@@ -872,8 +727,7 @@
+     (authorised : ReviewMatter → ActorId → Moment → Prop)
+     (r : RecoveryRecord) : Prop :=
+   r.correction = c.correction.correction ∧ r.decision.matter = c.finding.matter ∧
+-    ∃ paid, c.money.matchesReceipt paid (c.priorMaterialsRefs []) ∧
+-      paid.id = r.decision.payment ∧
++    ∃ paid ∈ c.money.actualReceipts, paid.id = r.decision.payment ∧
+       history.actualPaymentWithEvidence paid ∧
+       paid.instruction.atTime.before r.decision.approvedAt ∧
+       c.finding.decidedAt.by r.decision.approvedAt ∧
+@@ -895,11 +749,11 @@
+ def correctionShortageNoticeConforms (c : PaymentCorrectionCase) (l : Lesson)
+     (history : PaymentHistory) (credits : List Booking.CreditPosting) (refundPlace : Option Place)
+     (checkedAt : Moment) (refundOwedTo : Place → ActorId → Prop)
+-    (notice : CorrectionShortageNotice) (scope : CorrectedMonetaryScope) : Prop :=
++    (notice : CorrectionShortageNotice) : Prop :=
+   c.money.corrected.ref.lesson = l.id ∧ c.correction.recordedAt.by checkedAt ∧
+     checkedAt.by notice.sentAt ∧
+     notice.correction = c.correction.correction ∧ notice.payee = c.money.corrected.recipient ∧
+-    c.money.outstandingBefore history credits refundPlace checkedAt notice.outstanding scope ∧
++    c.money.outstandingBefore history credits refundPlace checkedAt notice.outstanding ∧
+     notice.progress ≠ "" ∧
+     match notice.payee with
+     | .person person _ => notice.sentTo = person
+@@ -948,17 +802,6 @@
+   allegedFacts : String
+   authorisedAt : Moment
+   effectiveAt : Moment
+-  deriving DecidableEq, Repr
+-
+-/-- The exact prior and adopted amounts from a retained monetary correction. -/
+-structure HoldPartRevision where
+-  prior : PaymentPart
+-  corrected : PaymentPart
+-  priorOutcome : EvidenceRef
+-  correctedOutcome : EvidenceRef
+-  priorAt : Moment
+-  adoptedAt : Moment
+-  recordedAt : Moment := adoptedAt
+   deriving DecidableEq, Repr
+ 
+ /-- Fact inputs for a hold concern the complaint and the payment or decision in question. -/
+@@ -1071,140 +914,7 @@
+   approvalArrangements : List NewApprovalArrangement := []
+   originalSettlements : List RecordedOriginalSettlement := []
+   clockBoundaries : List ClockBoundary := []
+-  partRevisions : List HoldPartRevision := []
+-  deriving DecidableEq, Repr
+-
+-/-- Keep the prior version after the coordinator records an adopted monetary correction. -/
+-def HoldHistory.withPartRevision (history : HoldHistory) (original : RecordedSettlementOutcome)
+-    (correction : PaymentCorrectionCase) : HoldHistory :=
+-  { history with partRevisions := history.partRevisions ++
+-      [⟨correction.originalPart, correction.money.corrected, original.outcome,
+-        correction.finding.outcome, original.decidedAt, correction.finding.decidedAt,
+-        correction.correction.recordedAt⟩] }
+-
+-def HoldHistory.withPartRevisionsKnownAt (history : HoldHistory) (knownAt : Moment) : HoldHistory :=
+-  { history with partRevisions := history.partRevisions.filter (fun row ↦
+-      decide (row.recordedAt.by knownAt)) }
+-
+-private def HoldPartRevision.precedes (prior next : HoldPartRevision) : Bool :=
+-  prior.corrected == next.prior && prior.correctedOutcome == next.priorOutcome &&
+-    decide (prior.adoptedAt.before next.adoptedAt)
+-
+-private def HoldPartRevision.touches (row : HoldPartRevision) (ref : PaymentPartRef) : Bool :=
+-  row.prior.ref == ref || row.corrected.ref == ref
+-
+-private def HoldPartRevision.withinPriorScope (revision : HoldPartRevision) : Bool :=
+-  revision.prior.recipient.samePayee revision.corrected.recipient &&
+-    decide (revision.corrected.amount ≤ revision.prior.amount)
+-
+-private def HoldPartRevision.insertByAdoption (row : HoldPartRevision) :
+-    List HoldPartRevision → List HoldPartRevision
+-  | [] => [row]
+-  | first :: rest =>
+-    if row.adoptedAt.by first.adoptedAt then row :: first :: rest
+-    else first :: row.insertByAdoption rest
+-
+-private def HoldHistory.revisionsByAdoption (history : HoldHistory) : List HoldPartRevision :=
+-  history.partRevisions.foldr HoldPartRevision.insertByAdoption []
+-
+-private def HoldHistory.portionPath (history : HoldHistory) (prior : PaymentPart)
+-    (since through : Moment) : List HoldPartRevision :=
+-  history.revisionsByAdoption.foldl (fun trail row ↦
+-    if decide (since.before row.adoptedAt ∧ row.adoptedAt.by through) &&
+-      (match trail with
+-      | [] => prior == row.prior
+-      | previous :: _ => previous.precedes row)
+-    then row :: trail else trail) []
+-
+-@[simp] private theorem HoldHistory.portionPath_of_noPartRevisions (history : HoldHistory)
+-    (empty : history.partRevisions = []) (prior : PaymentPart) (since through : Moment) :
+-    history.portionPath prior since through = [] := by
+-  simp [HoldHistory.portionPath, HoldHistory.revisionsByAdoption, empty]
+-
+-@[simp] private abbrev HoldHistory.scopeThrough (history : HoldHistory) (held : PaymentPart)
+-    (since : Moment)
+-    (part : PaymentPartRef) (through : Moment) (unresolved : Bool) : Prop :=
+-  let trail := history.portionPath held since through
+-  (trail.head?.map (·.corrected.ref)).getD held.ref = part ∧
+-    trail.all HoldPartRevision.withinPriorScope = !unresolved
+-
+-private def HoldHistory.predecessors (history : HoldHistory) (part : PaymentPart)
+-    (through : Moment) : List HoldPartRevision :=
+-  history.revisionsByAdoption.reverse.foldl (fun trail row ↦
+-    if decide (row.adoptedAt.by through) &&
+-      (match trail with
+-      | [] => row.corrected == part
+-      | next :: _ => row.precedes next)
+-    then row :: trail else trail) []
+-
+-@[simp] private theorem HoldHistory.predecessors_of_noPartRevisions (history : HoldHistory)
+-    (empty : history.partRevisions = []) (part : PaymentPart) (through : Moment) :
+-    history.predecessors part through = [] := by
+-  simp [HoldHistory.predecessors, HoldHistory.revisionsByAdoption, empty]
+-
+-/-- Only an unambiguous retained version determines a revised portion at this time. -/
+-def HoldHistory.establishedPartsAt (history : HoldHistory) (facts : HoldFacts) (lesson : LessonId)
+-    (purpose : PaymentPurpose) (time : Moment) : List PaymentPart :=
+-  let revisions := history.partRevisions
+-  let unrelated := (facts.establishedParts lesson purpose).filter fun part ↦
+-    !(revisions.any (·.touches part.ref))
+-  let prior := revisions.filterMap fun row ↦
+-    if decide (row.priorAt.by time ∧ time.before row.adoptedAt) &&
+-      !(revisions.any (·.precedes row)) then some row.prior else none
+-  let corrected := revisions.filterMap fun row ↦
+-    if decide (row.adoptedAt.by time) &&
+-      !(revisions.any fun next ↦ row.precedes next && decide (next.adoptedAt.by time)) &&
+-      (history.predecessors row.corrected time).all (fun choice ↦
+-        !(revisions.any fun alternate ↦ choice != alternate &&
+-          choice.prior == alternate.prior && choice.priorOutcome == alternate.priorOutcome &&
+-          decide (alternate.adoptedAt.by time)))
+-    then some row.corrected else none
+-  unrelated ++ ((prior.eraseDups ++ corrected).filter fun part ↦
+-    part.ref.lesson == lesson && part.ref.purpose == purpose && decide (0 < part.amount))
+-
+-def HoldHistory.factsAt (history : HoldHistory) (facts : HoldFacts) (time : Moment) : HoldFacts :=
+-  { facts with establishedParts := fun lesson purpose ↦
+-      history.establishedPartsAt facts lesson purpose time }
+-
+-@[simp] theorem HoldHistory.factsAt_of_noPartRevisions (history : HoldHistory)
+-    (empty : history.partRevisions = []) (facts : HoldFacts) (time : Moment) :
+-    history.factsAt facts time = facts := by
+-  have parts : (fun lesson purpose ↦ history.establishedPartsAt facts lesson purpose time) =
+-      facts.establishedParts := by
+-    funext lesson purpose
+-    simp [HoldHistory.establishedPartsAt, empty, List.filter_eq_self]
+-  unfold HoldHistory.factsAt
+-  rw [parts]
+-
+-private def HoldHistory.versionAt (history : HoldHistory) (part : PaymentPart)
+-    (time through : Moment) : PaymentPart :=
+-  ((history.predecessors part through).find? (fun row ↦
+-    decide (time.before row.adoptedAt))).map (·.prior) |>.getD part
+-
+-/-- Payee-specific receipts under an exact predecessor reference survive a correction. -/
+-def HoldHistory.remainingPortionBefore (history : HoldHistory) (part : PaymentPart)
+-    (time : Moment) (through : Moment := time) : Amount :=
+-  match history.predecessors part through with
+-  | [] => history.payments.remainingBefore part time
+-  | trail =>
+-    let historical := history.versionAt part time through
+-    let earlierRefs := (trail.filter fun row ↦ decide (row.adoptedAt.by time)).map (·.prior.ref)
+-    let refs := (historical.ref :: earlierRefs).eraseDups
+-    max 0 (historical.amount - sumAmounts refs (fun ref ↦
+-      history.payments.receivedForPartBefore ref historical.recipient time))
+-
+-/-- Measure completion of the adopted amount using receipts to its own payee. -/
+-def HoldHistory.fullyRetainedPortionBy (history : HoldHistory) (part : PaymentPart)
+-    (cutoff : ClockCutoff) (through : Moment) : Prop :=
+-  match history.predecessors part through with
+-  | [] => history.payments.fullyRetainedBy part cutoff
+-  | trail =>
+-    let refs := (part.ref :: trail.map (·.prior.ref)).eraseDups
+-    history.payments.distinctReceipts ∧ history.payments.validReturns ∧
+-      cutoff.forEveryOrder fun deadline ↦
+-        part.amount ≤ sumAmounts refs (fun ref ↦
+-          history.payments.receivedForPartBefore ref part.recipient
+-            { deadline with order := deadline.order + 1 })
++  deriving DecidableEq, Repr
+ 
+ def HoldHistory.distinctFormalDecisions (history : HoldHistory) : Prop :=
+   (history.formal.map FormalHold.id).Nodup
+@@ -1218,8 +928,7 @@
+     actor ∉ a.originalSettlementProposers m ∧ actor ∉ a.originalSettlementApprovers m
+ 
+ def TemporaryHold.maySetAside (t : TemporaryHold) (a : ReviewAuthorities) (facts : HoldFacts)
+-    (payments : PaymentHistory)
+-    (outstanding : Amount := payments.remainingBefore t.part t.effectiveAt) : Prop :=
++    (payments : PaymentHistory) : Prop :=
+   let terms := facts.terms t.matter
+   facts.termsApply t.matter ∧ t.contact = terms.alternativeContact ∧
+     facts.isCanonicalPart t.part ∧ t.part.ref.lesson = t.matter.lesson ∧
+@@ -1235,12 +944,7 @@
+       ¬(t.part.ref ∈ facts.groupSettlementParts t.matter.lesson ∧
+         ∀ ref ∈ facts.groupSettlementParts t.matter.lesson, ref = t.part.ref)) ∧
+     t.effectiveAt.before terms.temporaryHoldExpiry ∧
+-    0 < outstanding
+-
+-private def HoldHistory.temporaryMaySetAside (history : HoldHistory) (a : ReviewAuthorities)
+-    (facts : HoldFacts) (t : TemporaryHold) : Prop :=
+-  t.maySetAside a (history.factsAt facts t.effectiveAt) history.payments
+-    (history.remainingPortionBefore t.part t.effectiveAt)
++    0 < payments.remainingBefore t.part t.effectiveAt
+ 
+ /-- The authority check for a finding uses the lawful setters in its own recorded case. -/
+ def HoldHistory.temporarySettersRecorded (history : HoldHistory) (a : ReviewAuthorities)
+@@ -1249,13 +953,12 @@
+     caseMatter.sameCase matter → effectiveAt.by through →
+     ((caseMatter, actor, effectiveAt) ∈ a.actualTemporaryHoldSetters ↔
+       ∃ temp ∈ history.temporary, temp.matter = caseMatter ∧ temp.contact = actor ∧
+-        temp.effectiveAt = effectiveAt ∧ history.temporaryMaySetAside a facts temp)
++        temp.effectiveAt = effectiveAt ∧ temp.maySetAside a facts history.payments)
+ 
+ def HoldHistory.notTemporarySetter (history : HoldHistory) (a : ReviewAuthorities)
+     (facts : HoldFacts) (matter : ReviewMatter) (actor : ActorId) (atTime : Moment) : Prop :=
+   ∀ temp ∈ history.temporary, temp.matter.sameCase matter →
+-    history.temporaryMaySetAside a facts temp →
+-    temp.effectiveAt.by atTime → actor ≠ temp.contact
++    temp.maySetAside a facts history.payments → temp.effectiveAt.by atTime → actor ≠ temp.contact
+ 
+ structure TemporaryHoldNotice where
+   matter : ReviewMatter
+@@ -1294,14 +997,12 @@
+      group ≠ [] ∧ ∀ part ∈ group, hold.covers part)
+ 
+ def FormalHold.mayImpose (hold : FormalHold) (a : ReviewAuthorities) (facts : HoldFacts)
+-    (payments : PaymentHistory)
+-    (outstanding : PaymentPart → Amount := fun part ↦ payments.remainingBefore part hold.effectiveAt) :
+-    Prop :=
++    (payments : PaymentHistory) : Prop :=
+   a.mayImposeOrLift hold.matter hold.imposedBy hold.decidedAt ∧
+     hold.decidedAt.by hold.effectiveAt ∧
+     (hold.portions.map PaymentPart.ref).Nodup ∧
+     (∀ p ∈ hold.portions, p.ref.lesson = hold.matter.lesson ∧
+-      facts.isCanonicalPart p ∧ 0 < outstanding p) ∧
++      facts.isCanonicalPart p ∧ 0 < payments.remainingBefore p hold.effectiveAt) ∧
+     (facts.isGroupLesson hold.matter.lesson → hold.concernsWholeGroup facts →
+       facts.affectsWholeSettlement hold.matter) ∧
+     match hold.subject with
+@@ -1372,9 +1073,7 @@
+ 
+ def HoldHistory.validFormalHold (history : HoldHistory) (a : ReviewAuthorities)
+     (facts : HoldFacts) (hold : FormalHold) : Prop :=
+-  hold ∈ history.formal ∧
+-    hold.mayImpose a (history.factsAt facts hold.effectiveAt) history.payments
+-      (fun part ↦ history.remainingPortionBefore part hold.effectiveAt) ∧
++  hold ∈ history.formal ∧ hold.mayImpose a facts history.payments ∧
+     (∀ part ∈ hold.portions,
+       ¬history.originallyApprovedBy a part.ref hold.imposedBy hold.decidedAt) ∧
+     history.notTemporarySetter a facts hold.matter hold.imposedBy hold.decidedAt ∧
+@@ -1388,54 +1087,24 @@
+     ¬history.originalSettlementActor hold lift.decidedBy lift.decidedAt ∧
+     history.notTemporarySetter a facts hold.matter lift.decidedBy lift.decidedAt
+ 
+-@[simp] private def HoldHistory.formalScopeThrough (history : HoldHistory) (a : ReviewAuthorities)
+-    (facts : HoldFacts) (hold : FormalHold) (part : PaymentPartRef) (time through : Moment)
+-    (unresolved : Bool) : Prop :=
+-  history.validFormalHold a facts hold ∧ hold.effectiveAt.by time ∧
+-    ∃ source ∈ hold.portions,
+-      history.scopeThrough source hold.effectiveAt part through unresolved ∧
+-      ¬∃ lift ∈ history.lifts,
+-        history.validLift a facts hold lift ∧ lift.covers source.ref ∧ lift.effectiveAt.by time
+-
+ def HoldHistory.formalInForce (history : HoldHistory) (a : ReviewAuthorities) (facts : HoldFacts)
+-    (hold : FormalHold) (part : PaymentPartRef) (time : Moment)
+-    (through : Moment := time) : Prop :=
+-  history.formalScopeThrough a facts hold part time through false
+-
+-@[simp] private def HoldHistory.temporaryScopeThrough (history : HoldHistory)
+-    (a : ReviewAuthorities) (facts : HoldFacts) (t : TemporaryHold) (part : PaymentPartRef)
+-    (time through : Moment) (unresolved : Bool) : Prop :=
+-  t ∈ history.temporary ∧ history.temporaryMaySetAside a facts t ∧
+-    history.scopeThrough t.part t.effectiveAt part through unresolved ∧
++    (hold : FormalHold) (part : PaymentPartRef) (time : Moment) : Prop :=
++  history.validFormalHold a facts hold ∧ hold.covers part ∧ hold.effectiveAt.by time ∧
++    ¬∃ lift ∈ history.lifts,
++      history.validLift a facts hold lift ∧ lift.covers part ∧ lift.effectiveAt.by time
++
++def HoldHistory.temporaryInForce (history : HoldHistory) (a : ReviewAuthorities)
++    (facts : HoldFacts) (t : TemporaryHold) (part : PaymentPartRef) (time : Moment) : Prop :=
++  t ∈ history.temporary ∧ t.maySetAside a facts history.payments ∧ t.part.ref = part ∧
+     t.effectiveAt.by time ∧ time.before (facts.terms t.matter).temporaryHoldExpiry ∧
+-    ¬∃ hold, hold.matter.sameCase t.matter ∧
++    ¬∃ hold, hold.matter.sameCase t.matter ∧ hold.covers part ∧
+       history.validFormalHold a facts hold ∧ t.effectiveAt.by hold.effectiveAt ∧
+-      hold.effectiveAt.by time ∧ ∃ source ∈ hold.portions,
+-        history.scopeThrough t.part t.effectiveAt source.ref hold.effectiveAt false
+-
+-def HoldHistory.temporaryInForce (history : HoldHistory) (a : ReviewAuthorities)
+-    (facts : HoldFacts) (t : TemporaryHold) (part : PaymentPartRef) (time : Moment)
+-    (through : Moment := time) : Prop :=
+-  history.temporaryScopeThrough a facts t part time through false
++      hold.effectiveAt.by time
+ 
+ def HoldHistory.paymentOnHold (history : HoldHistory) (a : ReviewAuthorities)
+-    (facts : HoldFacts) (part : PaymentPartRef) (time : Moment)
+-    (through : Moment := time) : Prop :=
+-  (∃ hold, history.formalInForce a facts hold part time through) ∨
+-    (∃ temp, history.temporaryInForce a facts temp part time through)
+-
+-/-- A plausible scope change needs evidence before a new payment is authorised. -/
+-def HoldHistory.paymentHoldScopeUnresolved (history : HoldHistory) (a : ReviewAuthorities)
+-    (facts : HoldFacts) (part : PaymentPartRef) (time : Moment)
+-    (through : Moment := time) : Prop :=
+-  (∃ hold, history.formalScopeThrough a facts hold part time through true) ∨
+-    (∃ temp, history.temporaryScopeThrough a facts temp part time through true)
+-
+-@[simp] theorem HoldHistory.noUnresolvedScopeWithoutRevisions (history : HoldHistory)
+-    (empty : history.partRevisions = []) (a : ReviewAuthorities) (facts : HoldFacts)
+-    (part : PaymentPartRef) (time through : Moment) :
+-    ¬history.paymentHoldScopeUnresolved a facts part time through := by
+-  simp [HoldHistory.paymentHoldScopeUnresolved, empty]
++    (facts : HoldFacts) (part : PaymentPartRef) (time : Moment) : Prop :=
++  (∃ hold, history.formalInForce a facts hold part time) ∨
++    (∃ temp, history.temporaryInForce a facts temp part time)
+ 
+ def HoldHistory.decisionOnFormalHold (history : HoldHistory) (a : ReviewAuthorities)
+     (facts : HoldFacts) (m : ReviewMatter) (decision : Nat) (time : Moment) : Prop :=
+@@ -1464,7 +1133,7 @@
+ def HoldHistory.temporaryHoldHandled (history : HoldHistory) (a : ReviewAuthorities)
+     (facts : HoldFacts) (temp : TemporaryHold) (notice : TemporaryHoldNotice)
+     (appointment : ReviewAppointment) (decision : TemporaryHoldDecision) : Prop :=
+-  temp ∈ history.temporary ∧ history.temporaryMaySetAside a facts temp ∧
++  temp ∈ history.temporary ∧ temp.maySetAside a facts history.payments ∧
+     temporaryHoldNoticeConforms a temp notice ∧
+     match decision with
+     | .finding f => f.matter = temp.matter ∧ reviewFindingConforms a [appointment] f ∧
+@@ -1784,26 +1453,6 @@
+     (part : PaymentPart) (instruction : PaymentInstruction) : Prop :=
+   ∃ entry ∈ approval.scope, entry.covers history part instruction
+ 
+-private def HoldHistory.samePayeeAtGrant (history : HoldHistory) (approval : PaymentApproval)
+-    (part : PaymentPart) (atTime : Moment) : Bool :=
+-  (history.versionAt part approval.grantedAt atTime).recipient.samePayee part.recipient
+-
+-/-- A retained approval covers the same payee even if the destination was shared. -/
+-def HoldHistory.approvalCovers (history : HoldHistory) (approval : PaymentApproval)
+-    (part : PaymentPart) (instruction : PaymentInstruction) : Prop :=
+-  if history.samePayeeAtGrant approval part instruction.atTime then
+-    approval.covers history.payments part instruction
+-  else False
+-
+-@[simp] theorem HoldHistory.approvalCovers_of_noPartRevisions (history : HoldHistory)
+-    (empty : history.partRevisions = []) (approval : PaymentApproval) (part : PaymentPart)
+-    (instruction : PaymentInstruction) :
+-    history.approvalCovers approval part instruction ↔
+-      approval.covers history.payments part instruction := by
+-  cases recipient : part.recipient <;>
+-    simp [HoldHistory.approvalCovers, HoldHistory.samePayeeAtGrant, HoldHistory.versionAt,
+-      empty, recipient, PaymentRecipient.samePayee]
+-
+ def PaymentApproval.originallyCovered (approval : PaymentApproval) (part : PaymentPart) : Prop :=
+   ∃ entry ∈ approval.scope, entry.part = part.ref ∧ part.recipient.accepts entry.destination ∧
+     0 < entry.amount ∧ ∀ stopped ∈ entry.ceasesCoveringAt, approval.grantedAt.before stopped
+@@ -1833,91 +1482,68 @@
+     (history : HoldHistory) (approval : PaymentApproval) (part : PaymentPart)
+     (schedule : PaymentSchedule) (originalPaymentConditions : PaymentInstruction → Prop)
+     (instruction : PaymentInstruction) : Prop :=
+-  (history.factsAt facts instruction.atTime).isCanonicalPart part ∧
+-    history.approvalRecorded approval ∧
++  facts.isCanonicalPart part ∧ history.approvalRecorded approval ∧
+     approval.authorisedAtGrant a ∧ approval.validAt instruction.atTime ∧
+-    history.approvalCovers approval part instruction ∧
++    approval.covers history.payments part instruction ∧
+     instruction.executor = approval.executor ∧
+     history.payments.validOutstandingPayment part instruction ∧
+     originalPaymentConditions instruction ∧
+     instruction.atTime.by schedule.originalExecutionDeadline ∧
+     history.distinctFormalDecisions ∧
+-    ¬history.paymentOnHold a facts part.ref instruction.atTime ∧
+-    ¬history.paymentHoldScopeUnresolved a facts part.ref instruction.atTime ∧
+-    instruction.amount ≤ history.remainingPortionBefore part instruction.atTime
++    ¬history.paymentOnHold a facts part.ref instruction.atTime
+ 
+ /-- A later duplicate lift cannot give another window for a portion already released. -/
+ def HoldHistory.releasesPart (history : HoldHistory) (a : ReviewAuthorities)
+-    (facts : HoldFacts) (hold : FormalHold) (lift : FormalLift) (part : PaymentPartRef)
+-    (through : Moment := lift.effectiveAt) : Prop :=
+-  history.validFormalHold a facts hold ∧ lift ∈ history.lifts ∧
+-    history.validLift a facts hold lift ∧ history.distinctFormalDecisions ∧
+-    ∃ source ∈ hold.portions,
+-      history.scopeThrough source hold.effectiveAt part through false ∧
+-      lift.covers source.ref ∧
+-      ¬∃ earlier ∈ history.lifts, history.validLift a facts hold earlier ∧
+-        earlier.covers source.ref ∧ earlier.effectiveAt.before lift.effectiveAt
++    (facts : HoldFacts) (hold : FormalHold) (lift : FormalLift) (part : PaymentPartRef) : Prop :=
++  history.validFormalHold a facts hold ∧ hold.covers part ∧
++    lift ∈ history.lifts ∧ history.validLift a facts hold lift ∧ lift.covers part ∧
++    history.distinctFormalDecisions ∧
++    ¬∃ earlier ∈ history.lifts,
++      history.validLift a facts hold earlier ∧ earlier.covers part ∧ earlier.effectiveAt.before lift.effectiveAt
+ 
+ /-- The same payment part is continuously held up to its first unheld moment. -/
+ def HoldHistory.firstUnheldFrom (history : HoldHistory) (a : ReviewAuthorities) (facts : HoldFacts)
+-    (part : PaymentPartRef) (start releasedAt : Moment) (through : Moment := releasedAt) : Prop :=
+-  start.by releasedAt ∧ ¬history.paymentOnHold a facts part releasedAt through ∧
+-    ¬history.paymentHoldScopeUnresolved a facts part releasedAt through ∧
+-    ∀ time, start.by time → time.before releasedAt → history.paymentOnHold a facts part time through
++    (part : PaymentPartRef) (start releasedAt : Moment) : Prop :=
++  start.by releasedAt ∧ ¬history.paymentOnHold a facts part releasedAt ∧
++    ∀ time, start.by time → time.before releasedAt → history.paymentOnHold a facts part time
+ 
+ /-- The complete release follows a recorded formal lift. Another hold may end later. -/
+ def HoldHistory.paymentReleasedAt (history : HoldHistory) (a : ReviewAuthorities) (facts : HoldFacts)
+-    (part : PaymentPartRef) (releasedAt : Moment) (through : Moment := releasedAt) : Prop :=
+-  ∃ hold lift, history.releasesPart a facts hold lift part through ∧
+-    history.firstUnheldFrom a facts part lift.effectiveAt releasedAt through
+-
+-/-- A release after the original deadline must trace back to it if the unpaid
+-    part was formally held then. A release before that deadline has its own history. -/
+-def postLiftReleaseMatches (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+-    (part : PaymentPart) (schedule : PaymentSchedule) (releasedAt : Moment)
+-    (through : Moment := releasedAt) : Prop :=
+-  let original := schedule.originalExecutionDeadline
+-  history.paymentReleasedAt a facts part.ref releasedAt through ∧
+-    (original.before releasedAt →
+-      (∃ hold, history.formalInForce a facts hold part.ref original through) →
+-      0 < history.remainingPortionBefore part original through →
+-      history.firstUnheldFrom a facts part.ref original releasedAt through)
++    (part : PaymentPartRef) (releasedAt : Moment) : Prop :=
++  ∃ hold lift, history.releasesPart a facts hold lift part ∧
++    history.firstUnheldFrom a facts part lift.effectiveAt releasedAt
+ 
+ /-- The prompt payment duty concerns an established due and unpaid amount. -/
+ def postLiftPromptPaymentDue (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+-    (part : PaymentPart) (schedule : PaymentSchedule) (releasedAt : Moment)
+-    (through : Moment := releasedAt) : Prop :=
+-  (history.factsAt facts through).isCanonicalPart part ∧
+-    postLiftReleaseMatches a facts history part schedule releasedAt through ∧
+-    schedule.dueAt.before releasedAt ∧ 0 < history.remainingPortionBefore part releasedAt through
++    (part : PaymentPart) (schedule : PaymentSchedule) (releasedAt : Moment) : Prop :=
++  facts.isCanonicalPart part ∧ history.paymentReleasedAt a facts part.ref releasedAt ∧
++    schedule.dueAt.before releasedAt ∧ 0 < history.payments.remainingBefore part releasedAt
+ 
+ /-- Failure to complete prompt payment is observable even if ordinary execution remained open. -/
+ def postLiftPromptPaymentComplies (a : ReviewAuthorities) (facts : HoldFacts)
+     (history : HoldHistory) (part : PaymentPart) (schedule : PaymentSchedule)
+     (releasedAt observedAt : Moment) : Prop :=
+   let cutoff := schedule.postLiftDeadline.cutoff
+-  postLiftPromptPaymentDue a facts history part schedule releasedAt observedAt →
++  postLiftPromptPaymentDue a facts history part schedule releasedAt →
+     history.resolvesDeadline schedule.postLiftDeadline releasedAt ∧
+-    (cutoff.mayHavePassed observedAt → history.fullyRetainedPortionBy part cutoff observedAt)
++    (cutoff.mayHavePassed observedAt → history.payments.fullyRetainedBy part cutoff)
+ 
+ /-- The execution window opens at the first release from a hold continuous from the deadline. -/
+ def postLiftWindowOpened (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+-    (part : PaymentPart) (schedule : PaymentSchedule) (releasedAt : Moment)
+-    (through : Moment := releasedAt) : Prop :=
++    (part : PaymentPart) (schedule : PaymentSchedule) (releasedAt : Moment) : Prop :=
+   let original := schedule.originalExecutionDeadline
+-  (history.factsAt facts through).isCanonicalPart part ∧
+-    history.paymentReleasedAt a facts part.ref releasedAt through ∧
+-    (∃ hold, history.formalInForce a facts hold part.ref original through) ∧
+-    0 < history.remainingPortionBefore part original through ∧ original.before releasedAt ∧
+-    history.firstUnheldFrom a facts part.ref original releasedAt through ∧
++  facts.isCanonicalPart part ∧ history.paymentReleasedAt a facts part.ref releasedAt ∧
++    (∃ hold, history.formalInForce a facts hold part.ref original) ∧
++    0 < history.payments.remainingBefore part original ∧ original.before releasedAt ∧
++    history.firstUnheldFrom a facts part.ref original releasedAt ∧
+     history.resolvesDeadline schedule.postLiftDeadline releasedAt
+ 
+ /-- Permission to use the form's window requires an effective hold at the original deadline. -/
+ def postLiftWindowApplies (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+     (part : PaymentPart) (schedule : PaymentSchedule) (releasedAt atTime : Moment) : Prop :=
+-  postLiftWindowOpened a facts history part schedule releasedAt atTime ∧
++  postLiftWindowOpened a facts history part schedule releasedAt ∧
+     releasedAt.by atTime ∧ schedule.postLiftDeadline.cutoff.metBy atTime ∧
+-    0 < history.remainingPortionBefore part atTime
++    0 < history.payments.remainingBefore part atTime
+ 
+ /-- Check the selected payment again at actual execution, including every other effective hold. -/
+ def postLiftPaymentConditions (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+@@ -1925,24 +1551,21 @@
+     (instruction : PaymentInstruction) : Prop :=
+   postLiftWindowApplies a facts history part schedule releasedAt instruction.atTime ∧
+     history.payments.validOutstandingPayment part instruction ∧
+-    ¬history.paymentOnHold a facts part.ref instruction.atTime ∧
+-    ¬history.paymentHoldScopeUnresolved a facts part.ref instruction.atTime ∧
+-    instruction.amount ≤ history.remainingPortionBefore part instruction.atTime
++    ¬history.paymentOnHold a facts part.ref instruction.atTime
+ 
+ def originalApprovalAfterLift (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+     (original : PaymentApproval) (part : PaymentPart) (schedule : PaymentSchedule)
+     (releasedAt : Moment)
+     (originalPaymentConditions : PaymentInstruction → Prop) (p : PaymentInstruction) : Prop :=
+   postLiftPaymentConditions a facts history part schedule releasedAt p ∧
+-    history.approvalRecorded original ∧ original.authorisedAtGrant a ∧
+-    original.originallyCovered (history.versionAt part original.grantedAt p.atTime) ∧
++    history.approvalRecorded original ∧ original.authorisedAtGrant a ∧ original.originallyCovered part ∧
+     original.grantedAt.by schedule.originalExecutionDeadline ∧
+-    original.validAt p.atTime ∧ history.approvalCovers original part p ∧
++    original.validAt p.atTime ∧ original.covers history.payments part p ∧
+     p.executor = original.executor ∧ originalPaymentConditions p
+ 
+-def newApprovalRequiredAfterLift (history : HoldHistory) (original : PaymentApproval)
++def newApprovalRequiredAfterLift (history : PaymentHistory) (original : PaymentApproval)
+     (part : PaymentPart) (p : PaymentInstruction) : Prop :=
+-  ¬original.validAt p.atTime ∨ ¬history.approvalCovers original part p
++  ¬original.validAt p.atTime ∨ ¬original.covers history part p
+ 
+ /-- A new approval for a payment still owed comes from the authority current at its grant. -/
+ def newApprovalAfterLift (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+@@ -1951,19 +1574,18 @@
+     (currentPaymentConditions : PaymentInstruction → Prop) (p : PaymentInstruction) : Prop :=
+   postLiftPaymentConditions a facts history part schedule releasedAt p ∧
+     history.approvalRecorded original ∧ history.approvalRecorded replacement ∧
+-    original.authorisedAtGrant a ∧
+-    original.originallyCovered (history.versionAt part original.grantedAt p.atTime) ∧
++    original.authorisedAtGrant a ∧ original.originallyCovered part ∧
+     original.grantedAt.by schedule.originalExecutionDeadline ∧
+-    newApprovalRequiredAfterLift history original part p ∧
++    newApprovalRequiredAfterLift history.payments original part p ∧
+     replacement.id ≠ original.id ∧ original.grantedAt.before replacement.grantedAt ∧
+     replacement.authorisedAtGrant a ∧ replacement.validAt p.atTime ∧
+-    history.approvalCovers replacement part p ∧ p.executor = replacement.executor ∧
++    replacement.covers history.payments part p ∧ p.executor = replacement.executor ∧
+     currentPaymentConditions p
+ 
+ def HoldHistory.noEarlierApprovalFor (history : HoldHistory) (a : ReviewAuthorities) (part : PaymentPart)
+-    (first : PaymentApproval) (through : Moment := first.grantedAt) : Prop :=
++    (first : PaymentApproval) : Prop :=
+   ∀ old ∈ history.approvals, old ≠ first → old.grantedAt.by first.grantedAt →
+-    old.authorisedAtGrant a → ¬old.originallyCovered (history.versionAt part old.grantedAt through)
++    old.authorisedAtGrant a → ¬ old.originallyCovered part
+ 
+ /-- A hold can stop an unpaid portion before the first approval is granted. -/
+ def firstApprovalAfterLift (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+@@ -1971,26 +1593,24 @@
+     (releasedAt : Moment)
+     (originalPaymentConditions : PaymentInstruction → Prop) (p : PaymentInstruction) : Prop :=
+   postLiftPaymentConditions a facts history part schedule releasedAt p ∧
+-    history.approvalRecorded first ∧ history.noEarlierApprovalFor a part first p.atTime ∧
++    history.approvalRecorded first ∧ history.noEarlierApprovalFor a part first ∧
+     schedule.originalExecutionDeadline.before first.grantedAt ∧
+     first.authorisedAtGrant a ∧ first.validAt p.atTime ∧
+-    history.approvalCovers first part p ∧ p.executor = first.executor ∧ originalPaymentConditions p
++    first.covers history.payments part p ∧ p.executor = first.executor ∧ originalPaymentConditions p
+ 
+ /-- Record the current authority's approval arrangement within the form's completion period. -/
+ def approvalArrangementConforms (a : ReviewAuthorities) (facts : HoldFacts) (history : HoldHistory)
+     (old replacement : PaymentApproval) (part : PaymentPart) (schedule : PaymentSchedule)
+     (releasedAt : Moment) (record : NewApprovalArrangement) (p : PaymentInstruction) : Prop :=
+-  record ∈ history.approvalArrangements ∧
+-    history.paymentReleasedAt a facts part.ref releasedAt p.atTime ∧
++  record ∈ history.approvalArrangements ∧ history.paymentReleasedAt a facts part.ref releasedAt ∧
+     p.part = part.ref ∧ record.part = part.ref ∧
+     record.releasedAt = releasedAt ∧ record.original = old.id ∧
+     record.replacement = replacement.id ∧ replacement.id ≠ old.id ∧
+-    history.approvalRecorded old ∧ old.authorisedAtGrant a ∧
+-    old.originallyCovered (history.versionAt part old.grantedAt p.atTime) ∧
++    history.approvalRecorded old ∧ old.authorisedAtGrant a ∧ old.originallyCovered part ∧
+     history.approvalRecorded replacement ∧ replacement.authorisedAtGrant a ∧
+     old.grantedAt.before replacement.grantedAt ∧ replacement.validAt p.atTime ∧
+-    history.approvalCovers replacement part p ∧ p.executor = replacement.executor ∧
+-    newApprovalRequiredAfterLift history old part p ∧
++    replacement.covers history.payments part p ∧ p.executor = replacement.executor ∧
++    newApprovalRequiredAfterLift history.payments old part p ∧
+     a.approvesPayment part.ref record.arrangedBy record.arrangedAt ∧
+     record.arrangedAt.by replacement.grantedAt ∧ replacement.grantedAt.by p.atTime ∧
+     history.metDeadline schedule.postLiftDeadline releasedAt record.arrangedAt
+@@ -2022,32 +1642,28 @@
+     (history : HoldHistory) (part : PaymentPart) (schedule : PaymentSchedule)
+     (record : PostLiftPaymentRecord) : Prop :=
+   let p := record.paid.instruction
+-  (history.factsAt facts p.atTime).isCanonicalPart part ∧ record.schedule = schedule ∧
++  facts.isCanonicalPart part ∧ record.schedule = schedule ∧
+     history.payments.actualPaymentWithEvidence record.paid ∧
+     history.payments.recipientReceived part.recipient record.paid ∧
+     history.payments.validOutstandingPayment part p ∧
+-    postLiftReleaseMatches a facts history part schedule record.releasedAt p.atTime ∧
++    history.paymentReleasedAt a facts part.ref record.releasedAt ∧
+     record.releasedAt.by p.atTime ∧
+     history.resolvesDeadline schedule.postLiftDeadline record.releasedAt ∧
+     ¬history.paymentOnHold a facts part.ref p.atTime ∧
+-    ¬history.paymentHoldScopeUnresolved a facts part.ref p.atTime ∧
+-    p.amount ≤ history.remainingPortionBefore part p.atTime ∧
+     (match record.originalApproval with
+-    | none => ∃ first ∈ record.replacementApproval, history.noEarlierApprovalFor a part first p.atTime
++    | none => ∃ first ∈ record.replacementApproval, history.noEarlierApprovalFor a part first
+     | some original => history.approvalRecorded original ∧ original.authorisedAtGrant a ∧
+-        original.originallyCovered (history.versionAt part original.grantedAt p.atTime) ∧
+-        original.grantedAt.by schedule.originalExecutionDeadline ∧
++        original.originallyCovered part ∧ original.grantedAt.by schedule.originalExecutionDeadline ∧
+         original.grantedAt.before record.releasedAt ∧
+         ∀ replacement ∈ record.replacementApproval, replacement.id ≠ original.id ∧
+           original.grantedAt.before replacement.grantedAt ∧
+-          newApprovalRequiredAfterLift history original part p) ∧
++          newApprovalRequiredAfterLift history.payments original part p) ∧
+     (∃ usedApproval ∈ record.usedApproval, history.approvalRecorded usedApproval ∧
+       record.namedExecutor = usedApproval.executor ∧ record.namedExecutor = p.executor ∧
+       usedApproval.authorisedAtGrant a ∧ usedApproval.validAt p.atTime ∧
+-      history.samePayeeAtGrant usedApproval part p.atTime = true ∧
+       ∃ entry ∈ usedApproval.scope, entry.covers history.payments part p ∧
+         record.approvedOutstandingAtPayment =
+-          min (history.remainingPortionBefore part p.atTime)
++          min (history.payments.remainingBefore part p.atTime)
+             (entry.remainingBefore history.payments part p.atTime)) ∧
+     (∀ id, id ∈ record.otherHoldsAtPayment ↔
+       ∃ hold, hold.id = id ∧
+@@ -2067,29 +1683,27 @@
+     match release with
+     | none => atTime.by schedule.originalExecutionDeadline
+     | some releasedAt =>
+-      history.paymentReleasedAt a facts part.ref releasedAt atTime ∧ releasedAt.by atTime ∧
++      history.paymentReleasedAt a facts part.ref releasedAt ∧ releasedAt.by atTime ∧
+         (atTime.by schedule.originalExecutionDeadline ∨
+           postLiftWindowApplies a facts history part schedule releasedAt atTime) ∧
+-        (postLiftPromptPaymentDue a facts history part schedule releasedAt atTime →
++        (postLiftPromptPaymentDue a facts history part schedule releasedAt →
+           history.metDeadline schedule.postLiftDeadline releasedAt atTime)
+ 
+ /-- Timely completion measures the whole retained amount at each applicable cutoff. -/
+ def paymentCompletedByApplicableDeadlines (a : ReviewAuthorities) (facts : HoldFacts)
+     (history : HoldHistory) (part : PaymentPart) (schedule : PaymentSchedule)
+-    (release : Option Moment) (through : Moment := release.getD schedule.originalExecutionDeadline) :
+-    Prop :=
+-  let complete := fun cutoff ↦ history.fullyRetainedPortionBy part cutoff through
+-  (history.factsAt facts through).isCanonicalPart part ∧
+-    (∀ statutory ∈ schedule.legalDeadline, complete statutory) ∧
++    (release : Option Moment) : Prop :=
++  let complete := history.payments.fullyRetainedBy part
++  facts.isCanonicalPart part ∧ (∀ statutory ∈ schedule.legalDeadline, complete statutory) ∧
+     match release with
+     | none => complete schedule.originalExecutionDeadline
+     | some releasedAt =>
+-      history.paymentReleasedAt a facts part.ref releasedAt through ∧
++      history.paymentReleasedAt a facts part.ref releasedAt ∧
+         (complete schedule.originalExecutionDeadline ∨
+-          (postLiftWindowOpened a facts history part schedule releasedAt through ∧
++          (postLiftWindowOpened a facts history part schedule releasedAt ∧
+             schedule.postLiftDeadline.cutoff.metBy releasedAt ∧
+             complete schedule.postLiftDeadline.cutoff)) ∧
+-        (postLiftPromptPaymentDue a facts history part schedule releasedAt through →
++        (postLiftPromptPaymentDue a facts history part schedule releasedAt →
+           history.resolvesDeadline schedule.postLiftDeadline releasedAt ∧
+           complete schedule.postLiftDeadline.cutoff)
+ 
+@@ -2184,26 +1798,21 @@
+     (matter : ReviewMatter) (part : PaymentPart) (schedule : PaymentSchedule)
+     (postLiftCutoff : Moment → Prop × ClockCutoff) (notice : EscalationNotice)
+     (assignment : EscalationAssignment) : Prop :=
+-  let through := notice.takenOverAt
+-  facts.termsApply matter ∧ part.ref.lesson = matter.lesson ∧
+-  (history.factsAt facts through).isCanonicalPart part ∧
+-  assignment.matches notice ∧ 0 < history.remainingPortionBefore part through ∧
++  facts.termsApply matter ∧ part.ref.lesson = matter.lesson ∧ facts.isCanonicalPart part ∧
++  assignment.matches notice ∧ 0 < history.payments.remainingBefore part notice.takenOverAt ∧
+   let original := schedule.originalExecutionDeadline
+   let heldAtOriginal := fun hold : FormalHold ↦
+-    history.formalInForce a facts hold part.ref original through
++    history.formalInForce a facts hold part.ref original
+   ∃ deadline : ClockCutoff,
+     ((∃ law ∈ schedule.legalDeadline, deadline = .exact law) ∨
+-      (deadline = .exact original ∧ (¬∃ hold, heldAtOriginal hold) ∧
+-        ¬history.paymentHoldScopeUnresolved a facts part.ref original through) ∨
++      (deadline = .exact original ∧ ¬∃ hold, heldAtOriginal hold) ∨
+       ∃ releasedAt, releasedAt.by notice.takenOverAt ∧
+         (postLiftCutoff releasedAt).1 ∧ deadline = (postLiftCutoff releasedAt).2 ∧
+-        (((¬∃ hold, heldAtOriginal hold) ∧
+-            ¬history.paymentHoldScopeUnresolved a facts part.ref original through ∧
+-            postLiftPromptPaymentDue a facts history part schedule releasedAt through) ∨
+-          postLiftWindowOpened a facts history part schedule releasedAt through)) ∧
++        (postLiftPromptPaymentDue a facts history part schedule releasedAt ∨
++          postLiftWindowOpened a facts history part schedule releasedAt)) ∧
+     deadline.hasPassed notice.takenOverAt ∧
+     escalationDetailsConform (facts.terms matter) matter (.payment part.ref) notice ∧
+     deadline.forEveryOrder (fun cutoff ↦
+-      0 < history.remainingPortionBefore part { cutoff with order := cutoff.order + 1 } through)
++      0 < history.payments.remainingBefore part { cutoff with order := cutoff.order + 1 })
+ 
+ end SourceV14
+--- a/SourceV14/Settlement.lean
++++ b/SourceV14/Settlement.lean
+@@ -63,9 +63,11 @@
+ /-- A validly posted reversal subtracts only from its own receipt on this account. -/
+ def returnedFrom (ledger : List CreditPosting) (receipt : CreditPosting)
+     (query : Moment) : Amount :=
+-  sumAmountsWhere ledger
+-    (fun e ↦ decide (e.kind = .creditReturned receipt.id ∧ e.account = receipt.account ∧
+-      receipt.point.before e.point ∧ e.point.by query)) (·.amount)
++  sumAmounts
++    (ledger.filter fun e ↦ decide
++      (e.kind = .creditReturned receipt.id ∧ e.account = receipt.account ∧
++        receipt.point.before e.point ∧ e.point.by query))
++    (·.amount)
+ 
+ def debitTotal (p : Place) (ledger : List CreditPosting) (query : Moment) : Amount :=
+   sumAmounts (debitEntries p ledger query) (·.amount)
+@@ -79,51 +81,28 @@
+ 
+ def creditsRestoredFor (p : Place) (ledger : List CreditPosting) (query : Moment)
+     (refund : Option Nat := none) : Amount :=
+-  sumAmountsWhere ledger
+-    (fun e ↦ matchesRefund p refund e.kind && decide (e.account = p.account ∧ e.point.by query))
++  sumAmounts
++    (ledger.filter fun e ↦ matchesRefund p refund e.kind &&
++      decide (e.account = p.account ∧ e.point.by query))
+     (fun receipt ↦ receipt.amount - returnedFrom ledger receipt query)
+ 
+ def refundBalanceDue (p : Place) (ledger : List CreditPosting) (query : Moment)
+     (refundTotal : Amount) (refund : Option Nat := none) : Amount :=
+   max 0 (refundTotal - creditsRestoredFor p ledger query refund)
+ 
+-/-- Actual credit retained above the assessed amount of this refund. -/
+-def refundExcessRetained (p : Place) (ledger : List CreditPosting) (query : Moment)
+-    (refundTotal : Amount) (refund : Nat) : Amount :=
+-  max 0 (creditsRestoredFor p ledger query (some refund) - refundTotal)
+-
+-/-- Sum the credit applied to liabilities, excluding excess on each known refund. -/
+-def creditsAppliedToLessonRefunds (p : Place) (ledger : List CreditPosting) (query : Moment)
+-    (principals : List (Nat × Amount)) : Amount :=
+-  creditsRestoredFor p ledger query - sumAmounts principals (fun (refund, principal) ↦
+-    refundExcessRetained p ledger query principal refund)
+-
+ def FeeRefundCompleted (p : Place) (ledger : List CreditPosting) (query : Moment)
+     (refundTotal : Amount) (refund : Option Nat := none) : Prop :=
+   0 ≤ refundTotal ∧ refundBalanceDue p ledger query refundTotal refund = 0
+ 
+-/-- Each represented liability has its own complete restoration to the original account. -/
+-def RefundPrincipalsRestored (p : Place) (ledger : List CreditPosting) (query : Moment)
+-    (principals : List (Nat × Amount)) : Prop :=
+-  (principals.map Prod.fst).Nodup ∧
+-  ∀ row ∈ principals, FeeRefundCompleted p ledger query row.2 (some row.1)
+-
+-/-- The ledger contains the actual positive credit for this refund on its original account. -/
+-def LessonRefundPostingMatches (p : Place) (ledger : List CreditPosting) (receipt : CreditPosting)
+-    (refund : Nat) : Prop :=
+-  receipt ∈ ledger ∧ receipt.kind = .lessonRefund p.lesson p.id refund ∧
+-    receipt.account = p.account ∧ 0 < receipt.amount
+-
+ /-- A receipt must address the original account and remain within both refund and fee balances. -/
+ def ValidLessonRefund (p : Place) (ledger : List CreditPosting) (receipt : CreditPosting)
+-    (refund : Nat) (refundTotal : Amount) (cumulativeLessonFee : Bool)
+-    (otherPrincipals : List (Nat × Amount) := []) : Prop :=
++    (refund : Nat) (refundTotal : Amount) (cumulativeLessonFee : Bool) : Prop :=
+   let prior := ledger.filter (fun e ↦ decide (e.point.before receipt.point))
+   let scope := if cumulativeLessonFee then none else some refund
+-  LessonRefundPostingMatches p ledger receipt refund ∧
++  receipt ∈ ledger ∧ receipt.kind = .lessonRefund p.lesson p.id refund ∧
++  receipt.account = p.account ∧ 0 < receipt.amount ∧
+   receipt.amount ≤ refundBalanceDue p prior receipt.point refundTotal scope ∧
+-  receipt.amount ≤ debitTotal p prior receipt.point -
+-    creditsAppliedToLessonRefunds p prior receipt.point otherPrincipals
++  receipt.amount ≤ debitTotal p prior receipt.point - creditsRestoredFor p prior receipt.point
+ 
+ structure LessonSettlement where
+   lesson : LessonId
+--- a/SourceV14.lean
++++ b/SourceV14.lean
+@@ -1,2 +1 @@
+ import SourceV14.Operations
+-import SourceV14.Workflow
+--- a/lakefile.toml
++++ b/lakefile.toml
+@@ -1,5 +1,5 @@
+ name = "spark_source_v14"
+-version = "1.5.0"
++version = "1.4.0"
+ defaultTargets = ["SourceV14"]
+ 
+ [[lean_lib]]
